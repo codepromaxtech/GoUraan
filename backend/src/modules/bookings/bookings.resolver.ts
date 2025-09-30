@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { Resolver, Query, Mutation, Args, Int } from '@nestjs/graphql';
 import { UseGuards } from '@nestjs/common';
 import { BookingsService } from './bookings.service';
@@ -7,13 +6,13 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
-import { UserRole, BookingType, BookingStatus, PaymentStatus } from '@prisma/client';
+import { UserRole, BookingType as PrismaBookingType, BookingStatus, PaymentStatus } from '@prisma/client';
 
 // GraphQL Types
 import { ObjectType, Field, InputType } from '@nestjs/graphql';
 
 @ObjectType()
-export class BookingType {
+export class BookingGQLType {
   @Field()
   id: string;
 
@@ -21,7 +20,7 @@ export class BookingType {
   userId: string;
 
   @Field(() => String)
-  type: BookingType;
+  type: PrismaBookingType;
 
   @Field(() => String)
   status: BookingStatus;
@@ -38,7 +37,7 @@ export class BookingType {
   @Field(() => String)
   paymentStatus: PaymentStatus;
 
-  @Field()
+  @Field(() => String)
   bookingData: any;
 
   @Field({ nullable: true })
@@ -84,7 +83,7 @@ export class BookingStatsType {
 @InputType()
 export class CreateBookingInput {
   @Field(() => String)
-  type: BookingType;
+  type: PrismaBookingType;
 
   @Field()
   totalAmount: number;
@@ -92,7 +91,7 @@ export class CreateBookingInput {
   @Field({ nullable: true })
   currency?: string;
 
-  @Field()
+  @Field(() => String)
   bookingData: any;
 
   @Field({ nullable: true })
@@ -110,27 +109,27 @@ export class UpdateBookingInput {
   @Field({ nullable: true })
   totalAmount?: number;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   bookingData?: any;
 
   @Field({ nullable: true })
   notes?: string;
 }
 
-@Resolver(() => BookingType)
+@Resolver(() => BookingGQLType)
 export class BookingsResolver {
   constructor(private readonly bookingsService: BookingsService) {}
 
-  @Mutation(() => BookingType)
+  @Mutation(() => BookingGQLType)
   @UseGuards(JwtAuthGuard)
   async createBooking(
     @CurrentUser() user: any,
     @Args('input') input: CreateBookingInput,
-  ): Promise<BookingType> {
+  ): Promise<BookingGQLType> {
     return this.bookingsService.createBooking(user.id, input as CreateBookingDto);
   }
 
-  @Query(() => [BookingType])
+  @Query(() => [BookingGQLType])
   @UseGuards(JwtAuthGuard)
   async myBookings(
     @CurrentUser() user: any,
@@ -141,50 +140,50 @@ export class BookingsResolver {
     return result.bookings;
   }
 
-  @Query(() => BookingType)
+  @Query(() => BookingGQLType)
   @UseGuards(JwtAuthGuard)
   async booking(
     @CurrentUser() user: any,
     @Args('id') id: string,
-  ): Promise<BookingType> {
+  ): Promise<BookingGQLType> {
     return this.bookingsService.findById(id, user.id);
   }
 
-  @Query(() => BookingType)
+  @Query(() => BookingGQLType)
   @UseGuards(JwtAuthGuard)
   async bookingByReference(
     @CurrentUser() user: any,
     @Args('reference') reference: string,
-  ): Promise<BookingType> {
+  ): Promise<BookingGQLType> {
     return this.bookingsService.findByReference(reference, user.id);
   }
 
-  @Mutation(() => BookingType)
+  @Mutation(() => BookingGQLType)
   @UseGuards(JwtAuthGuard)
   async updateBooking(
     @CurrentUser() user: any,
     @Args('id') id: string,
     @Args('input') input: UpdateBookingInput,
-  ): Promise<BookingType> {
+  ): Promise<BookingGQLType> {
     return this.bookingsService.updateBooking(id, input as UpdateBookingDto, user.id);
   }
 
-  @Mutation(() => BookingType)
+  @Mutation(() => BookingGQLType)
   @UseGuards(JwtAuthGuard)
   async confirmBooking(
     @CurrentUser() user: any,
     @Args('id') id: string,
-  ): Promise<BookingType> {
+  ): Promise<BookingGQLType> {
     return this.bookingsService.confirmBooking(id, user.id);
   }
 
-  @Mutation(() => BookingType)
+  @Mutation(() => BookingGQLType)
   @UseGuards(JwtAuthGuard)
   async cancelBooking(
     @CurrentUser() user: any,
     @Args('id') id: string,
     @Args('reason', { nullable: true }) reason?: string,
-  ): Promise<BookingType> {
+  ): Promise<BookingGQLType> {
     return this.bookingsService.cancelBooking(id, reason, user.id);
   }
 
@@ -195,7 +194,7 @@ export class BookingsResolver {
   }
 
   // Admin queries
-  @Query(() => [BookingType])
+  @Query(() => [BookingGQLType])
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.STAFF_OPERATIONS, UserRole.STAFF_SUPPORT)
   async allBookings(
