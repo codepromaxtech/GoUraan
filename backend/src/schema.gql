@@ -1,0 +1,164 @@
+# ------------------------------------------------------
+# THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
+# ------------------------------------------------------
+
+type AuthResponseType {
+  accessToken: String!
+  expiresIn: String!
+  refreshToken: String!
+  tokenType: String!
+  user: AuthUserType!
+}
+
+type AuthUserType {
+  createdAt: DateTime!
+  email: String!
+  emailVerified: Boolean!
+  firstName: String!
+  id: String!
+  lastName: String!
+  loyaltyPoints: Float!
+  phone: String
+  phoneVerified: Boolean!
+  role: String!
+  status: String!
+}
+
+type BookingGQLType {
+  bookingData: String!
+  cancelledAt: DateTime
+  confirmedAt: DateTime
+  createdAt: DateTime!
+  currency: String!
+  expiresAt: DateTime
+  id: String!
+  notes: String
+  paymentStatus: String!
+  reference: String!
+  status: String!
+  totalAmount: Float!
+  type: String!
+  updatedAt: DateTime!
+  userId: String!
+}
+
+type BookingStatsType {
+  cancelledBookings: Float!
+  completedBookings: Float!
+  confirmedBookings: Float!
+  pendingBookings: Float!
+  totalBookings: Float!
+  totalRevenue: Float!
+}
+
+input CreateBookingInput {
+  bookingData: String!
+  currency: String
+  notes: String
+  totalAmount: Float!
+  type: String!
+}
+
+"""
+A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date-time format.
+"""
+scalar DateTime
+
+input LoginInput {
+  email: String!
+  password: String!
+}
+
+type Mutation {
+  cancelBooking(id: String!, reason: String): BookingGQLType!
+  confirmBooking(id: String!): BookingGQLType!
+  createBooking(input: CreateBookingInput!): BookingGQLType!
+  deactivateAccount: UserType!
+  login(input: LoginInput!): AuthResponseType!
+  logout: String!
+  refreshToken(input: RefreshTokenInput!): AuthResponseType!
+  register(input: RegisterInput!): AuthResponseType!
+  updateBooking(id: String!, input: UpdateBookingInput!): BookingGQLType!
+  updatePreferences(input: UpdateUserPreferencesInput!): String!
+  updateProfile(input: UpdateUserInput!): UserType!
+  updateUserStatus(id: String!, status: String!): UserType!
+}
+
+type Query {
+  allBookings(limit: Int! = 10, page: Int! = 1): [BookingGQLType!]!
+  booking(id: String!): BookingGQLType!
+  bookingByReference(reference: String!): BookingGQLType!
+  bookingStats: BookingStatsType!
+  me: UserType!
+  myBookingStats: BookingStatsType!
+  myBookings(limit: Int! = 10, page: Int! = 1): [BookingGQLType!]!
+  user(id: String!): UserType!
+  userStats: UserStatsType!
+}
+
+input RefreshTokenInput {
+  refreshToken: String!
+}
+
+input RegisterInput {
+  email: String!
+  firstName: String!
+  lastName: String!
+  password: String!
+  phone: String
+  role: String
+}
+
+input UpdateBookingInput {
+  bookingData: String
+  notes: String
+  paymentStatus: String
+  status: String
+  totalAmount: Float
+}
+
+input UpdateUserInput {
+  avatar: String
+  email: String
+  firstName: String
+  lastName: String
+  phone: String
+}
+
+input UpdateUserPreferencesInput {
+  currency: String
+  emailNotifications: Boolean
+  language: String
+  marketingEmails: Boolean
+  mealPreference: String
+  pushNotifications: Boolean
+  seatPreference: String
+  smsNotifications: Boolean
+  specialAssistance: [String!]
+  timezone: String
+}
+
+type UserStatsType {
+  completedBookings: Float!
+  loyaltyPoints: Float!
+  totalBookings: Float!
+  totalSpent: Float!
+  walletBalance: Float!
+  walletCurrency: String!
+}
+
+type UserType {
+  avatar: String
+  createdAt: DateTime!
+  email: String!
+  emailVerified: Boolean!
+  firstName: String!
+  id: String!
+  lastName: String!
+  loyaltyPoints: Float!
+  phone: String
+  phoneVerified: Boolean!
+  role: String!
+  status: String!
+  updatedAt: DateTime!
+}
