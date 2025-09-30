@@ -49,12 +49,16 @@ const Header: React.FC = () => {
 
           {/* Desktop Actions */}
           <div className="hidden md:flex items-center space-x-4">
-            <Button variant="ghost" size="sm">
-              Sign In
-            </Button>
-            <Button variant="brand" size="sm">
-              Sign Up
-            </Button>
+            <Link href="/login">
+              <Button variant="ghost" size="sm">
+                Sign In
+              </Button>
+            </Link>
+            <Link href="/register">
+              <Button variant="brand" size="sm">
+                Sign Up
+              </Button>
+            </Link>
           </div>
 
           {/* Mobile menu button */}
@@ -118,12 +122,16 @@ const Header: React.FC = () => {
           ))}
           <div className="pt-4 pb-3 border-t border-gray-200">
             <div className="flex items-center px-3 space-x-3">
-              <Button variant="ghost" size="sm" className="w-full">
-                Sign In
-              </Button>
-              <Button variant="brand" size="sm" className="w-full">
-                Sign Up
-              </Button>
+              <Link href="/login" className="w-full">
+                <Button variant="ghost" size="sm" className="w-full">
+                  Sign In
+                </Button>
+              </Link>
+              <Link href="/register" className="w-full">
+                <Button variant="brand" size="sm" className="w-full">
+                  Sign Up
+                </Button>
+              </Link>
             </div>
           </div>
         </div>
