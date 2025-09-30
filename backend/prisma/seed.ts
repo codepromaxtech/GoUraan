@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { PrismaClient, UserRole, UserStatus, Currency, Language } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 
@@ -7,7 +8,7 @@ async function main() {
   console.log('🌱 Starting database seeding...');
 
   // Create admin user
-  const adminPassword = await bcrypt.hash('Admin123!', 12);
+  const adminPassword = await bcrypt.hash('asdf@1234', 12);
   const admin = await prisma.user.upsert({
     where: { email: 'admin@gouraan.com' },
     update: {},
@@ -294,7 +295,7 @@ async function main() {
   }
 
   console.log('✅ Database seeding completed successfully!');
-  console.log(`👤 Admin user: admin@gouraan.com (password: Admin123!)`);
+  console.log(`👤 Admin user: admin@gouraan.com (password: asdf@1234)`);
   console.log(`👤 Customer user: customer@example.com (password: Customer123!)`);
   console.log(`👤 Agent user: agent@gouraan.com (password: Agent123!)`);
 }

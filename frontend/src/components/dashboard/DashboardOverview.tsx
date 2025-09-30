@@ -120,8 +120,6 @@ const DashboardOverview: React.FC = () => {
               <span className={`text-sm ${
                 stat.changeType === 'positive' 
                   ? 'text-green-600' 
-                  : stat.changeType === 'negative' 
-                  ? 'text-red-600' 
                   : 'text-gray-600'
               }`}>
                 {stat.change}
