@@ -38,6 +38,10 @@ COPY --from=builder --chown=nestjs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nestjs:nodejs /app/prisma ./prisma
 COPY --from=builder --chown=nestjs:nodejs /app/package.json ./package.json
 
+# Create necessary directories with proper permissions
+RUN mkdir -p /app/uploads /app/logs /app/temp && \
+    chown -R nestjs:nodejs /app
+
 USER nestjs
 
 EXPOSE 3001
