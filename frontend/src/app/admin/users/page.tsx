@@ -22,6 +22,8 @@ export default function AdminUsersPage() {
   const [filter, setFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [newUser, setNewUser] = useState({
     email: '',
     firstName: '',
@@ -276,9 +278,26 @@ export default function AdminUsersPage() {
                         {new Date(user.createdAt).toLocaleDateString()}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <button className="text-blue-600 hover:text-blue-900 mr-3">Edit</button>
+                        <button
+                          onClick={() => {
+                            setSelectedUser(user);
+                            setShowEditModal(true);
+                          }}
+                          className="text-blue-600 hover:text-blue-900 mr-3"
+                        >
+                          Edit
+                        </button>
                         <button className="text-green-600 hover:text-green-900 mr-3">View</button>
-                        <button className="text-red-600 hover:text-red-900">Suspend</button>
+                        <button
+                          onClick={() => {
+                            if (confirm(`Are you sure you want to suspend ${user.firstName} ${user.lastName}?`)) {
+                              alert('User suspension will be connected to backend API');
+                            }
+                          }}
+                          className="text-red-600 hover:text-red-900"
+                        >
+                          Suspend
+                        </button>
                       </td>
                     </tr>
                   ))
@@ -363,7 +382,13 @@ export default function AdminUsersPage() {
                     <option value="CUSTOMER">Customer</option>
                     <option value="AGENT">Agent</option>
                     <option value="ADMIN">Admin</option>
+                    <option value="STAFF_FINANCE">Staff - Finance</option>
+                    <option value="STAFF_SUPPORT">Staff - Support</option>
+                    <option value="STAFF_OPERATIONS">Staff - Operations</option>
                   </select>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Select the appropriate role for this user
+                  </p>
                 </div>
 
                 <div className="flex gap-3 mt-6">
@@ -380,6 +405,137 @@ export default function AdminUsersPage() {
                   <button
                     type="button"
                     onClick={() => setShowCreateModal(false)}
+                    className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Edit User Modal */}
+        {showEditModal && selectedUser && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-8 max-w-md w-full">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-gray-900">Edit User</h2>
+                <button
+                  onClick={() => {
+                    setShowEditModal(false);
+                    setSelectedUser(null);
+                  }}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <form className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                  <input
+                    type="email"
+                    value={selectedUser.email}
+                    onChange={(e) => setSelectedUser({...selectedUser, email: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">First Name</label>
+                  <input
+                    type="text"
+                    value={selectedUser.firstName}
+                    onChange={(e) => setSelectedUser({...selectedUser, firstName: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Last Name</label>
+                  <input
+                    type="text"
+                    value={selectedUser.lastName}
+                    onChange={(e) => setSelectedUser({...selectedUser, lastName: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Role</label>
+                  <select
+                    value={selectedUser.role}
+                    onChange={(e) => setSelectedUser({...selectedUser, role: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="CUSTOMER">Customer</option>
+                    <option value="AGENT">Agent</option>
+                    <option value="ADMIN">Admin</option>
+                    <option value="STAFF_FINANCE">Staff - Finance</option>
+                    <option value="STAFF_SUPPORT">Staff - Support</option>
+                    <option value="STAFF_OPERATIONS">Staff - Operations</option>
+                  </select>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Change user role to manage their permissions
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                  <select
+                    value={selectedUser.status}
+                    onChange={(e) => setSelectedUser({...selectedUser, status: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="ACTIVE">Active</option>
+                    <option value="INACTIVE">Inactive</option>
+                    <option value="SUSPENDED">Suspended</option>
+                    <option value="PENDING_VERIFICATION">Pending Verification</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Loyalty Points</label>
+                  <input
+                    type="number"
+                    value={selectedUser.loyaltyPoints}
+                    onChange={(e) => setSelectedUser({...selectedUser, loyaltyPoints: parseInt(e.target.value)})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={selectedUser.emailVerified}
+                    onChange={(e) => setSelectedUser({...selectedUser, emailVerified: e.target.checked})}
+                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <label className="ml-2 text-sm text-gray-700">Email Verified</label>
+                </div>
+
+                <div className="flex gap-3 mt-6">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      alert('User update will be connected to backend API');
+                      setShowEditModal(false);
+                      setSelectedUser(null);
+                    }}
+                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                  >
+                    Save Changes
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowEditModal(false);
+                      setSelectedUser(null);
+                    }}
                     className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300"
                   >
                     Cancel
