@@ -23,6 +23,12 @@ export default function AdminSettingsPage() {
     smtpPort: '587',
     smtpUser: '',
     smtpPassword: '',
+    supportEmail: 'support@gouraan.com',
+    supportEmailPassword: '',
+    supportImapHost: 'imap.gmail.com',
+    supportImapPort: '993',
+    enableEmailIntegration: true,
+    liveChatEnabled: true,
   });
 
   const handleSave = () => {
@@ -315,6 +321,137 @@ export default function AdminSettingsPage() {
                     placeholder="••••••••"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                   />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Support Email Integration */}
+          <div className="bg-white rounded-lg shadow">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h2 className="text-lg font-semibold text-gray-900">Support Email Integration</h2>
+              <p className="text-sm text-gray-500 mt-1">Connect support email to manage customer communications from dashboard</p>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <p className="font-medium text-gray-900">Enable Email Integration</p>
+                  <p className="text-sm text-gray-500">Sync support emails with ticket system</p>
+                </div>
+                <button
+                  onClick={() => setSettings({...settings, enableEmailIntegration: !settings.enableEmailIntegration})}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    settings.enableEmailIntegration ? 'bg-blue-600' : 'bg-gray-200'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      settings.enableEmailIntegration ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Support Email</label>
+                  <input
+                    type="email"
+                    value={settings.supportEmail}
+                    onChange={(e) => setSettings({...settings, supportEmail: e.target.value})}
+                    placeholder="support@gouraan.com"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Email Password</label>
+                  <input
+                    type="password"
+                    value={settings.supportEmailPassword}
+                    onChange={(e) => setSettings({...settings, supportEmailPassword: e.target.value})}
+                    placeholder="••••••••"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">IMAP Host</label>
+                  <input
+                    type="text"
+                    value={settings.supportImapHost}
+                    onChange={(e) => setSettings({...settings, supportImapHost: e.target.value})}
+                    placeholder="imap.gmail.com"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">IMAP Port</label>
+                  <input
+                    type="text"
+                    value={settings.supportImapPort}
+                    onChange={(e) => setSettings({...settings, supportImapPort: e.target.value})}
+                    placeholder="993"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+              </div>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-4">
+                <div className="flex gap-3">
+                  <svg className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div className="text-sm text-blue-800">
+                    <p className="font-medium mb-1">Email Integration Features:</p>
+                    <ul className="list-disc list-inside space-y-1">
+                      <li>Automatically create tickets from incoming emails</li>
+                      <li>Reply to customers directly from dashboard</li>
+                      <li>Assign emails to support team members</li>
+                      <li>Track email conversations in ticket system</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Live Chat Settings */}
+          <div className="bg-white rounded-lg shadow">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h2 className="text-lg font-semibold text-gray-900">Live Chat Settings</h2>
+              <p className="text-sm text-gray-500 mt-1">Configure live chat widget for customer support</p>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium text-gray-900">Enable Live Chat</p>
+                  <p className="text-sm text-gray-500">Show chat widget on public pages</p>
+                </div>
+                <button
+                  onClick={() => setSettings({...settings, liveChatEnabled: !settings.liveChatEnabled})}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    settings.liveChatEnabled ? 'bg-blue-600' : 'bg-gray-200'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      settings.liveChatEnabled ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4 mt-4">
+                <div className="flex gap-3">
+                  <svg className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div className="text-sm text-green-800">
+                    <p className="font-medium mb-1">Live Chat Features:</p>
+                    <ul className="list-disc list-inside space-y-1">
+                      <li>Real-time messaging with customers</li>
+                      <li>Automatic ticket creation from chat</li>
+                      <li>Assign chats to support team</li>
+                      <li>Chat history and transcripts</li>
+                    </ul>
+                  </div>
                 </div>
               </div>
             </div>
