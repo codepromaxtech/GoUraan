@@ -20,11 +20,15 @@ export default function AdminSupportPage() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [filter, setFilter] = useState('all');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
+  const [replyMessage, setReplyMessage] = useState('');
   const [newTicket, setNewTicket] = useState({
     subject: '',
     priority: 'MEDIUM',
     category: 'GENERAL',
     description: '',
+    customerEmail: '',
   });
 
   const getStatusColor = (status: string) => {
@@ -214,8 +218,24 @@ export default function AdminSupportPage() {
                         {new Date(ticket.createdAt).toLocaleDateString()}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <button className="text-blue-600 hover:text-blue-900 mr-3">View</button>
-                        <button className="text-green-600 hover:text-green-900">Reply</button>
+                        <button
+                          onClick={() => {
+                            setSelectedTicket(ticket);
+                            setShowViewModal(true);
+                          }}
+                          className="text-blue-600 hover:text-blue-900 mr-3"
+                        >
+                          View
+                        </button>
+                        <button
+                          onClick={() => {
+                            setSelectedTicket(ticket);
+                            setShowViewModal(true);
+                          }}
+                          className="text-green-600 hover:text-green-900"
+                        >
+                          Reply
+                        </button>
                       </td>
                     </tr>
                   ))
@@ -242,6 +262,17 @@ export default function AdminSupportPage() {
               </div>
 
               <form className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Customer Email</label>
+                  <input
+                    type="email"
+                    value={newTicket.customerEmail}
+                    onChange={(e) => setNewTicket({...newTicket, customerEmail: e.target.value})}
+                    placeholder="customer@example.com"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Subject</label>
                   <input
@@ -313,6 +344,151 @@ export default function AdminSupportPage() {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* View/Reply Ticket Modal */}
+        {showViewModal && selectedTicket && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-8 max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-center mb-6">
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900">Ticket #{selectedTicket.id}</h2>
+                  <p className="text-gray-500 text-sm mt-1">{selectedTicket.subject}</p>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowViewModal(false);
+                    setSelectedTicket(null);
+                    setReplyMessage('');
+                  }}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Ticket Details */}
+              <div className="bg-gray-50 rounded-lg p-4 mb-6">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-gray-600">Customer</p>
+                    <p className="font-semibold">{selectedTicket.customer.name}</p>
+                    <p className="text-sm text-gray-500">{selectedTicket.customer.email}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600">Created</p>
+                    <p className="font-semibold">{new Date(selectedTicket.createdAt).toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600">Priority</p>
+                    <span className={`inline-block px-2 py-1 text-xs font-semibold rounded-full ${getPriorityColor(selectedTicket.priority)}`}>
+                      {selectedTicket.priority}
+                    </span>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600">Status</p>
+                    <span className={`inline-block px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(selectedTicket.status)}`}>
+                      {selectedTicket.status}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Ticket Messages */}
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold mb-4">Conversation</h3>
+                <div className="space-y-4">
+                  {/* Customer Message */}
+                  <div className="bg-blue-50 rounded-lg p-4">
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-full bg-blue-200 flex items-center justify-center">
+                        <span className="text-blue-700 font-semibold">
+                          {selectedTicket.customer.name.charAt(0)}
+                        </span>
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between mb-1">
+                          <p className="font-semibold text-gray-900">{selectedTicket.customer.name}</p>
+                          <p className="text-xs text-gray-500">{new Date(selectedTicket.createdAt).toLocaleString()}</p>
+                        </div>
+                        <p className="text-gray-700">
+                          This is the customer's original message describing their issue or inquiry. 
+                          The full ticket description would be displayed here.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Admin Reply Example */}
+                  <div className="bg-green-50 rounded-lg p-4">
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-full bg-green-200 flex items-center justify-center">
+                        <span className="text-green-700 font-semibold">A</span>
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between mb-1">
+                          <p className="font-semibold text-gray-900">Admin Support</p>
+                          <p className="text-xs text-gray-500">{selectedTicket.lastReply}</p>
+                        </div>
+                        <p className="text-gray-700">
+                          Previous admin replies would be displayed here in chronological order.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Reply Form */}
+              <div className="border-t pt-6">
+                <h3 className="text-lg font-semibold mb-4">Send Reply</h3>
+                <textarea
+                  value={replyMessage}
+                  onChange={(e) => setReplyMessage(e.target.value)}
+                  rows={4}
+                  placeholder="Type your reply here..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 mb-4"
+                />
+
+                {/* Quick Actions */}
+                <div className="flex items-center justify-between">
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => alert('Change status to In Progress')}
+                      className="px-3 py-1 text-sm bg-yellow-100 text-yellow-800 rounded hover:bg-yellow-200"
+                    >
+                      Mark In Progress
+                    </button>
+                    <button
+                      onClick={() => alert('Change status to Resolved')}
+                      className="px-3 py-1 text-sm bg-green-100 text-green-800 rounded hover:bg-green-200"
+                    >
+                      Mark Resolved
+                    </button>
+                    <button
+                      onClick={() => alert('Change status to Closed')}
+                      className="px-3 py-1 text-sm bg-gray-100 text-gray-800 rounded hover:bg-gray-200"
+                    >
+                      Close Ticket
+                    </button>
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (replyMessage.trim()) {
+                        alert('Reply sent! This will be connected to backend API');
+                        setReplyMessage('');
+                      }
+                    }}
+                    className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                  >
+                    Send Reply
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         )}
