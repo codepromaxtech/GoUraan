@@ -33,14 +33,30 @@ export default function AdminBookingsPage() {
   const fetchBookings = async () => {
     try {
       setLoading(true);
-      // This would call the admin bookings endpoint
-      // const data = await api.request('/bookings/admin/all');
-      // setBookings(data.bookings);
-      
-      // Mock data for now
-      setBookings([]);
+      const token = localStorage.getItem('accessToken');
+      if (!token) {
+        console.error('No access token found');
+        setLoading(false);
+        return;
+      }
+
+      const response = await fetch('http://localhost:3001/api/v1/bookings', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setBookings(data.bookings || []);
+      } else {
+        console.error('Failed to fetch bookings');
+        setBookings([]);
+      }
     } catch (error) {
       console.error('Error fetching bookings:', error);
+      setBookings([]);
     } finally {
       setLoading(false);
     }

@@ -29,14 +29,30 @@ export default function AdminUsersPage() {
   const fetchUsers = async () => {
     try {
       setLoading(true);
-      // This would call the admin users endpoint
-      // const data = await api.request('/users');
-      // setUsers(data.users);
-      
-      // Mock data for now
-      setUsers([]);
+      const token = localStorage.getItem('accessToken');
+      if (!token) {
+        console.error('No access token found');
+        setLoading(false);
+        return;
+      }
+
+      const response = await fetch('http://localhost:3001/api/v1/users', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setUsers(data.users || []);
+      } else {
+        console.error('Failed to fetch users');
+        setUsers([]);
+      }
     } catch (error) {
       console.error('Error fetching users:', error);
+      setUsers([]);
     } finally {
       setLoading(false);
     }
