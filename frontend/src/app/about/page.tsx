@@ -1,13 +1,11 @@
-import { Metadata } from 'next';
+'use client';
 
-export const metadata: Metadata = {
-  title: 'About Us',
-  description: 'Learn more about GoUraan',
-};
+import MainLayout from '@/components/layout/MainLayout';
 
 export default function AboutPage() {
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+    <MainLayout>
+      <div className="bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto">
         <h1 className="text-4xl font-bold text-gray-900 mb-8">About GoUraan</h1>
         
@@ -58,6 +56,7 @@ export default function AboutPage() {
           </ul>
         </div>
       </div>
-    </div>
+      </div>
+    </MainLayout>
   );
 }

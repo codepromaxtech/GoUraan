@@ -1,13 +1,11 @@
-import { Metadata } from 'next';
+'use client';
 
-export const metadata: Metadata = {
-  title: 'Flights',
-  description: 'Search and book flights',
-};
+import MainLayout from '@/components/layout/MainLayout';
 
 export default function FlightsPage() {
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+    <MainLayout>
+      <div className="bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
         <h1 className="text-3xl font-bold text-gray-900 mb-8">Search Flights</h1>
         
@@ -55,6 +53,7 @@ export default function FlightsPage() {
           <p>Flight search results will appear here</p>
         </div>
       </div>
-    </div>
+      </div>
+    </MainLayout>
   );
 }
