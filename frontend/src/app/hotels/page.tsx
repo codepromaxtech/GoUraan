@@ -6,6 +6,30 @@ import MainLayout from '@/components/layout/MainLayout';
 export default function HotelsPage() {
   const [guests, setGuests] = useState({ adults: 2, children: 0, rooms: 1 });
   const [showGuests, setShowGuests] = useState(false);
+  const [destination, setDestination] = useState('');
+  const [checkIn, setCheckIn] = useState('');
+  const [checkOut, setCheckOut] = useState('');
+
+  const handleSearch = () => {
+    if (!destination || !checkIn || !checkOut) {
+      alert('Please fill in all search fields');
+      return;
+    }
+    
+    const searchData = {
+      destination,
+      checkIn,
+      checkOut,
+      guests: {
+        adults: guests.adults,
+        children: guests.children,
+        rooms: guests.rooms
+      }
+    };
+    
+    console.log('Searching hotels with:', searchData);
+    alert(`Searching hotels in ${destination}\nCheck-in: ${checkIn}\nCheck-out: ${checkOut}\nGuests: ${guests.adults + guests.children}, Rooms: ${guests.rooms}\n\nThis will be connected to the hotel search API.`);
+  };
 
   const popularHotels = [
     { name: 'Burj Al Arab', city: 'Dubai', rating: 5, price: '$850', image: '🏨', reviews: '4,523' },
@@ -62,6 +86,8 @@ export default function HotelsPage() {
                 </label>
                 <input
                   type="text"
+                  value={destination}
+                  onChange={(e) => setDestination(e.target.value)}
                   placeholder="City, hotel, or landmark"
                   className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                 />
@@ -79,6 +105,8 @@ export default function HotelsPage() {
                 </label>
                 <input
                   type="date"
+                  value={checkIn}
+                  onChange={(e) => setCheckIn(e.target.value)}
                   className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                 />
               </div>
@@ -95,6 +123,8 @@ export default function HotelsPage() {
                 </label>
                 <input
                   type="date"
+                  value={checkOut}
+                  onChange={(e) => setCheckOut(e.target.value)}
                   className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                 />
               </div>
@@ -150,7 +180,10 @@ export default function HotelsPage() {
 
               {/* Search Button */}
               <div className="md:col-span-12">
-                <button className="w-full md:w-auto px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all shadow-lg hover:shadow-xl">
+                <button 
+                  onClick={handleSearch}
+                  className="w-full md:w-auto px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all shadow-lg hover:shadow-xl"
+                >
                   <span className="flex items-center justify-center gap-2">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
