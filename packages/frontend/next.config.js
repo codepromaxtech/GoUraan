@@ -27,17 +27,17 @@ const nextConfig = {
     NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET || 'your-nextauth-secret-key',
     
     // Other environment variables
-    NODE_ENV: process.env.NODE_ENV || 'development',
   },
   async rewrites() {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
     return [
       {
         source: '/api/graphql',
-        destination: `${process.env.NEXT_PUBLIC_API_URL}/graphql`,
+        destination: `${apiUrl}/graphql`,
       },
       {
         source: '/api/:path*',
-        destination: `${process.env.NEXT_PUBLIC_API_URL}/:path*`,
+        destination: `${apiUrl}/:path*`,
       },
     ];
   },
