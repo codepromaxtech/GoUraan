@@ -54,32 +54,7 @@ GoUraan is a **complete, production-ready travel booking platform** that rivals 
 
 ## 🏗️ **Monorepo Structure**
 
-This project uses a monorepo structure managed with pnpm workspaces for better code organization and dependency management.
-
-### **Project Structure**
-
-```
-.
-├── packages/
-│   ├── backend/         # NestJS backend API
-│   │   ├── prisma/      # Database schema and migrations
-│   │   ├── src/         # Source code
-│   │   └── package.json # Backend dependencies
-│   │
-│   ├── frontend/        # Next.js frontend application
-│   │   ├── public/      # Static files
-│   │   ├── src/         # Source code
-│   │   └── package.json # Frontend dependencies
-│   │
-│   ├── docker/          # Docker configuration
-│   └── scripts/         # Utility scripts
-│
-├── .gitignore
-├── package.json         # Root package.json with workspace scripts
-├── pnpm-lock.yaml       # pnpm lock file
-└── pnpm-workspace.yaml  # pnpm workspace configuration
-```
-
+T
 ### **Development Workflow**
 
 1. **Install pnpm** (if not already installed):

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Inter, Poppins } from 'next/font/google';
 import '@/styles/globals.css';
+import { QueryProvider } from '@/providers/query-provider';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -95,15 +96,8 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={`${inter.variable} ${poppins.variable}`}>
-      <head>
-        <link rel="icon" href="/favicon.ico" />
-        <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
-        <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
-        <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
-        <link rel="manifest" href="/site.webmanifest" />
-        <meta name="theme-color" content="#0ea5e9" />
-        <meta name="msapplication-TileColor" content="#0ea5e9" />
-      </head>
+      <body className={cn('min-h-screen bg-background font-sans antialiased')}>
+        <QueryProvider>
       <body className="min-h-screen bg-gray-50 antialiased">
         <div id="root">
           {children}

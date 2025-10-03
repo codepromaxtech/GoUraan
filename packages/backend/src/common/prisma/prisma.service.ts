@@ -62,19 +62,31 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
       this.logger.log('✅ Database connected successfully');
     } catch (error) {
       this.logger.error('❌ Failed to connect to database', error);
-      throw error;
     }
   }
 
   async onModuleDestroy() {
     await this.$disconnect();
-    this.logger.log('Database disconnected');
   }
 
-  async enableShutdownHooks(app: any) {
-    this.$on('beforeExit', async () => {
-      await app.close();
-    });
+  /**
+   * Clean the database (for testing purposes only)
+   * WARNING: This will delete all data in the database
+   */
+  async cleanDatabase() {
+    if (process.env.NODE_ENV === 'test') {
+      const models = Reflect.ownKeys(this).filter(
+        (key) => typeof key === 'string' && key[0] !== '_' && key[0] !== '$',
+      );
+
+      return Promise.all(
+        models.map((modelKey) => {
+          if (this[modelKey]?.deleteMany) {
+            return this[modelKey].deleteMany({});
+          }
+        }),
+      );
+    }
   }
 
   // Helper method for transactions

@@ -23,8 +23,12 @@ import { HotelsModule } from './modules/hotels/hotels.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { DocumentsModule } from './modules/documents/documents.module';
 import { ReviewsModule } from './modules/reviews/reviews.module';
+import { RoomsModule } from './modules/rooms/rooms.module';
+import { SupportModule } from './modules/support/support.module';
 import { WalletModule } from './modules/wallet/wallet.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { AnalyticsModule } from './modules/analytics/analytics.module';
+import { ChatModule } from './modules/chat/chat.module';
 
 // Health check
 import { HealthModule } from './common/health/health.module';
@@ -82,11 +86,15 @@ import { HealthModule } from './common/health/health.module';
     PackagesModule,
     FlightsModule,
     HotelsModule,
+    RoomsModule, // New module for room management
+    SupportModule, // New module for support tickets
+    ChatModule, // Real-time chat functionality
     NotificationsModule,
     DocumentsModule,
     ReviewsModule,
     WalletModule,
     AdminModule,
+    AnalyticsModule, // Analytics dashboard and metrics
 
     // System modules
     HealthModule,

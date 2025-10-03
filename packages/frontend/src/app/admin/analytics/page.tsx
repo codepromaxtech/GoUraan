@@ -1,53 +1,241 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { format, subDays } from 'date-fns';
+import { Line, Bar, Pie } from 'react-chartjs-2';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  ArcElement,
+  Title,
+  Tooltip,
+  Legend,
+} from 'chart.js';
 import AdminLayout from '@/components/layout/AdminLayout';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+
+// Register ChartJS components
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  ArcElement,
+  Title,
+  Tooltip,
+  Legend
+);
+
+// API client
+const fetchAnalytics = async (endpoint: string, params = {}) => {
+  const query = new URLSearchParams(params).toString();
+  const res = await fetch(`/api/analytics/${endpoint}?${query}`);
+  if (!res.ok) throw new Error('Failed to fetch analytics');
+  return res.json();
+};\n
+// Date range presets
+const DATE_RANGES = {
+  '7days': {
+    from: subDays(new Date(), 7).toISOString(),
+    to: new Date().toISOString(),
+    label: 'Last 7 Days'
+  },
+  '30days': {
+    from: subDays(new Date(), 30).toISOString(),
+    to: new Date().toISOString(),
+    label: 'Last 30 Days'
+  },
+  '90days': {
+    from: subDays(new Date(), 90).toISOString(),
+    to: new Date().toISOString(),
+    label: 'Last 90 Days'
+  },
+  year: {
+    from: new Date(new Date().getFullYear(), 0, 1).toISOString(),
+    to: new Date().toISOString(),
+    label: 'This Year'
+  }
+};
 
 export default function AdminAnalyticsPage() {
   const [dateRange, setDateRange] = useState('30days');
+  const range = DATE_RANGES[dateRange as keyof typeof DATE_RANGES] || DATE_RANGES['30days'];
+
+  // Fetch analytics data
+  const { data: overview, isLoading, error } = useQuery({
+    queryKey: ['analytics', 'overview', dateRange],
+    queryFn: () => fetchAnalytics('overview', {
+      from: range.from,
+      to: range.to
+    }),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+
+  // Chart options
+  const chartOptions = {
+    responsive: true,
+    plugins: {
+      legend: {
+        position: 'top' as const,
+      },
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+      },
+    },
+  };
+
+  // Format currency
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(value);
+  };
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <AdminLayout>
+        <div className="p-6">
+          <div className="flex justify-between items-center mb-6">
+            <div>
+              <Skeleton className="h-8 w-64 mb-2" />
+              <Skeleton className="h-4 w-48" />
+            </div>
+            <Skeleton className="h-10 w-40" />
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+            {[1, 2, 3, 4].map((i) => (
+              <Skeleton key={i} className="h-40 rounded-lg" />
+            ))}
+          </div>
+          
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <Skeleton className="h-96 rounded-lg" />
+            <Skeleton className="h-96 rounded-lg" />
+          </div>
+        </div>
+      </AdminLayout>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <AdminLayout>
+        <div className="p-6">
+          <div className="bg-red-50 border-l-4 border-red-400 p-4">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <p className="text-sm text-red-700">
+                  Failed to load analytics data. Please try again later.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </AdminLayout>
+    );
+  }
 
   return (
     <AdminLayout>
       <div className="p-6">
-        <div className="mb-6 flex justify-between items-center">
+        <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Advanced Analytics</h1>
-            <p className="text-gray-600 mt-2">Deep insights into your business performance</p>
+            <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Analytics Dashboard</h1>
+            <p className="text-gray-600 mt-1">
+              Insights and metrics for {range.label.toLowerCase()} • Updated just now
+            </p>
           </div>
           <select
             value={dateRange}
             onChange={(e) => setDateRange(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+            className="px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base"
           >
-            <option value="7days">Last 7 Days</option>
-            <option value="30days">Last 30 Days</option>
-            <option value="90days">Last 90 Days</option>
-            <option value="year">This Year</option>
+            {Object.entries(DATE_RANGES).map(([key, { label }]) => (
+              <option key={key} value={key}>
+                {label}
+              </option>
+            ))}
           </select>
         </div>
 
         {/* Key Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-          <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg shadow p-6 text-white">
-            <p className="text-blue-100 text-sm">Total Revenue</p>
-            <p className="text-3xl font-bold mt-2">$0</p>
-            <p className="text-blue-100 text-sm mt-2">↑ 0% from last period</p>
-          </div>
-          <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-lg shadow p-6 text-white">
-            <p className="text-green-100 text-sm">Conversion Rate</p>
-            <p className="text-3xl font-bold mt-2">0%</p>
-            <p className="text-green-100 text-sm mt-2">↑ 0% from last period</p>
-          </div>
-          <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg shadow p-6 text-white">
-            <p className="text-purple-100 text-sm">Avg. Order Value</p>
-            <p className="text-3xl font-bold mt-2">$0</p>
-            <p className="text-purple-100 text-sm mt-2">↑ 0% from last period</p>
-          </div>
-          <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg shadow p-6 text-white">
-            <p className="text-orange-100 text-sm">Customer LTV</p>
-            <p className="text-3xl font-bold mt-2">$0</p>
-            <p className="text-orange-100 text-sm mt-2">↑ 0% from last period</p>
-          </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <Card className="border-l-4 border-blue-500">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-gray-500">Total Revenue</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {formatCurrency(overview?.revenue?.total || 0)}
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                {overview?.revenue?.trend > 0 ? '↑' : '↓'} {Math.abs(overview?.revenue?.trend || 0)}% from last period
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-l-4 border-green-500">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-gray-500">Total Bookings</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {overview?.bookings?.total?.toLocaleString() || '0'}
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                {overview?.bookings?.trend > 0 ? '↑' : '↓'} {Math.abs(overview?.bookings?.trend || 0)}% from last period
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-l-4 border-purple-500">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-gray-500">Active Users</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {overview?.users?.active?.toLocaleString() || '0'}
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                {overview?.users?.trend > 0 ? '↑' : '↓'} {Math.abs(overview?.users?.trend || 0)}% from last period
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-l-4 border-orange-500">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-gray-500">Avg. Order Value</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {formatCurrency(overview?.revenue?.avgOrderValue || 0)}
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                {overview?.revenue?.aovTrend > 0 ? '↑' : '↓'} {Math.abs(overview?.revenue?.aovTrend || 0)}% from last period
+              </p>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Charts Row */}

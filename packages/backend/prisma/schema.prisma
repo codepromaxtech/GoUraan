@@ -12,78 +12,85 @@ datasource db {
 
 // User Management
 model User {
-  id              String    @id @default(cuid())
-  email           String    @unique
-  password        String?
-  firstName       String
-  lastName        String
-  phone           String?   @unique
-  avatar          String?
-  role            UserRole  @default(CUSTOMER)
-  status          UserStatus @default(PENDING_VERIFICATION)
-  emailVerified   Boolean   @default(false)
-  phoneVerified   Boolean   @default(false)
-  twoFactorEnabled Boolean  @default(false)
-  loyaltyPoints   Int       @default(0)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  lastLoginAt     DateTime?
+  id               String     @id @default(cuid())
+  email            String     @unique
+  password         String?
+  firstName        String
+  lastName         String
+  phone            String?    @unique
+  avatar           String?
+  role             UserRole   @default(CUSTOMER)
+  status           UserStatus @default(PENDING_VERIFICATION)
+  emailVerified    Boolean    @default(false)
+  phoneVerified    Boolean    @default(false)
+  twoFactorEnabled Boolean    @default(false)
+  loyaltyPoints    Int        @default(0)
+  isOnline         Boolean    @default(false)
+  lastSeenAt       DateTime?
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+  lastLoginAt      DateTime?
 
   // Relations
-  preferences     UserPreferences?
-  wallet          Wallet?
-  bookings        Booking[]
-  payments        Payment[]
-  reviews         Review[]
-  documents       Document[]
-  sessions        UserSession[]
-  notifications   Notification[]
+  preferences         UserPreferences?
+  wallet              Wallet?
+  bookings            Booking[]
+  payments            Payment[]
+  reviews             Review[]
+  documents           Document[]
+  sessions            UserSession[]
+  notifications       Notification[]
   loyaltyTransactions LoyaltyTransaction[]
-  agentProfile    AgentProfile?
-  
+  agentProfile        AgentProfile?
+  supportTickets      SupportTicket[]
+  assignedTickets     SupportTicket[]  @relation("AssignedTickets")
+  supportMessages     SupportTicketMessage[]
+  sentMessages        ChatMessage[]    @relation("SentMessages")
+  receivedMessages    ChatMessage[]    @relation("ReceivedMessages")
+
   @@map("users")
 }
 
 model UserPreferences {
-  id          String   @id @default(cuid())
-  userId      String   @unique
-  language    Language @default(EN)
-  currency    Currency @default(USD)
-  timezone    String   @default("UTC")
-  
+  id       String   @id @default(cuid())
+  userId   String   @unique
+  language Language @default(EN)
+  currency Currency @default(USD)
+  timezone String   @default("UTC")
+
   // Notification preferences
-  emailNotifications    Boolean @default(true)
-  smsNotifications      Boolean @default(false)
-  pushNotifications     Boolean @default(true)
-  marketingEmails       Boolean @default(true)
-  
+  emailNotifications Boolean @default(true)
+  smsNotifications   Boolean @default(false)
+  pushNotifications  Boolean @default(true)
+  marketingEmails    Boolean @default(true)
+
   // Travel preferences
-  seatPreference        SeatPreference?
-  mealPreference        String?
-  specialAssistance     String[]
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+  seatPreference    SeatPreference?
+  mealPreference    String?
+  specialAssistance String[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@map("user_preferences")
 }
 
 model UserSession {
-  id          String   @id @default(cuid())
-  userId      String
-  token       String   @unique
-  refreshToken String? @unique
-  deviceInfo  String?
-  ipAddress   String?
-  userAgent   String?
-  isActive    Boolean  @default(true)
-  expiresAt   DateTime
-  createdAt   DateTime @default(now())
-  
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+  id           String   @id @default(cuid())
+  userId       String
+  token        String   @unique
+  refreshToken String?  @unique
+  deviceInfo   String?
+  ipAddress    String?
+  userAgent    String?
+  isActive     Boolean  @default(true)
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@map("user_sessions")
 }
 
@@ -98,30 +105,30 @@ model AgentProfile {
   isVerified      Boolean  @default(false)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
-  
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@map("agent_profiles")
 }
 
 // Wallet System
 model Wallet {
-  id          String    @id @default(cuid())
-  userId      String    @unique
-  balance     Float     @default(0)
-  currency    Currency  @default(USD)
-  isActive    Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  
-  user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  balance   Float    @default(0)
+  currency  Currency @default(USD)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   transactions WalletTransaction[]
-  
+
   @@map("wallets")
 }
 
 model WalletTransaction {
-  id          String              @id @default(cuid())
+  id          String                @id @default(cuid())
   walletId    String
   type        WalletTransactionType
   amount      Float
@@ -129,25 +136,25 @@ model WalletTransaction {
   description String
   reference   String?
   metadata    Json?
-  createdAt   DateTime            @default(now())
-  
-  wallet      Wallet              @relation(fields: [walletId], references: [id], onDelete: Cascade)
-  
+  createdAt   DateTime              @default(now())
+
+  wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
   @@map("wallet_transactions")
 }
 
 model LoyaltyTransaction {
-  id          String   @id @default(cuid())
+  id          String                 @id @default(cuid())
   userId      String
   points      Int
   type        LoyaltyTransactionType
   description String
   reference   String?
   expiresAt   DateTime?
-  createdAt   DateTime @default(now())
-  
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+  createdAt   DateTime               @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@map("loyalty_transactions")
 }
 
@@ -161,114 +168,202 @@ model Booking {
   totalAmount   Float
   currency      Currency      @default(USD)
   paymentStatus PaymentStatus @default(PENDING)
-  
+
   // Booking details (JSON for flexibility)
-  bookingData   Json
-  
+  bookingData Json
+
   // Metadata
-  metadata      Json?
-  notes         String?
-  
+  metadata Json?
+  notes    String?
+
   // Timestamps
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
-  expiresAt     DateTime?
-  confirmedAt   DateTime?
-  cancelledAt   DateTime?
-  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  expiresAt   DateTime?
+  confirmedAt DateTime?
+  cancelledAt DateTime?
+
   // Relations
-  user          User          @relation(fields: [userId], references: [id])
-  payments      Payment[]
-  documents     Document[]
-  reviews       Review[]
-  
+  user      User       @relation(fields: [userId], references: [id])
+  payments  Payment[]
+  documents Document[]
+  reviews   Review[]
+
   @@map("bookings")
 }
 
 // Payment System
 model Payment {
-  id              String         @id @default(cuid())
-  bookingId       String
-  userId          String
-  amount          Float
-  currency        Currency       @default(USD)
-  method          PaymentMethod
-  gateway         PaymentGateway
-  status          PaymentStatus  @default(PENDING)
-  
+  id        String         @id @default(cuid())
+  bookingId String
+  userId    String
+  amount    Float
+  currency  Currency       @default(USD)
+  method    PaymentMethod
+  gateway   PaymentGateway
+  status    PaymentStatus  @default(PENDING)
+
   // Gateway specific data
   gatewayTransactionId String?
   gatewayResponse      Json?
-  
+
   // Refund information
-  refundAmount    Float?
-  refundedAt      DateTime?
-  refundReason    String?
-  
+  refundAmount Float?
+  refundedAt   DateTime?
+  refundReason String?
+
   // Metadata
-  metadata        Json?
-  
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
-  processedAt     DateTime?
-  
+  metadata Json?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  processedAt DateTime?
+
   // Relations
-  booking         Booking        @relation(fields: [bookingId], references: [id])
-  user            User           @relation(fields: [userId], references: [id])
-  
+  booking Booking @relation(fields: [bookingId], references: [id])
+  user    User    @relation(fields: [userId], references: [id])
+
   @@map("payments")
 }
 
 // Travel Packages
 model TravelPackage {
-  id              String              @id @default(cuid())
-  name            String
-  slug            String              @unique
-  description     String
+  id               String          @id @default(cuid())
+  name             String
+  slug             String          @unique
+  description      String
   shortDescription String?
-  type            PackageType
-  category        PackageCategory
-  
+  type             PackageType
+  category         PackageCategory
+
   // Pricing
-  basePrice       Float
-  currency        Currency            @default(USD)
-  pricePerPerson  Boolean             @default(true)
-  
+  basePrice      Float
+  currency       Currency @default(USD)
+  pricePerPerson Boolean  @default(true)
+
   // Package details
-  duration        Int                 // in days
-  maxTravelers    Int                 @default(50)
-  minTravelers    Int                 @default(1)
-  destinations    String[]
-  inclusions      String[]
-  exclusions      String[]
-  
+  duration     Int // in days
+  maxTravelers Int      @default(50)
+  minTravelers Int      @default(1)
+  destinations String[]
+  inclusions   String[]
+  exclusions   String[]
+
   // Itinerary (JSON structure)
-  itinerary       Json
-  
+  itinerary Json
+
   // Media
-  images          String[]
-  videos          String[]
-  
+  images String[]
+  videos String[]
+
   // Availability
-  availableFrom   DateTime
-  availableTo     DateTime
-  isActive        Boolean             @default(true)
-  
+  availableFrom DateTime
+  availableTo   DateTime
+  isActive      Boolean  @default(true)
+
   // SEO
   metaTitle       String?
   metaDescription String?
-  
+
   // Timestamps
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @updatedAt
-  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   // Relations
-  reviews         Review[]
-  
+  reviews Review[]
+
   @@map("travel_packages")
 }
 
-// Airlines and Flights (for reference)
+// Flight Booking System
+model FlightBooking {
+  id          String   @id @default(cuid())
+  bookingId   String   @unique
+  pnr         String   @unique
+  bookingDate DateTime
+  issueDate   DateTime
+  issuedBy    String
+  status      String   @default("PENDING")
+  bookingType String   @default("FLIGHT")
+
+  // Flight Details
+  flightSegments FlightSegment[]
+  passengers     Passenger[]
+  tickets        Ticket[]
+
+  // Pricing
+  baseFare    Decimal @default(0)
+  tax         Decimal @default(0)
+  totalFare   Decimal @default(0)
+  discount    Decimal @default(0)
+  customerPay Decimal @default(0)
+  agencyPay   Decimal @default(0)
+  expense     Decimal @default(0)
+  profit      Decimal @default(0)
+
+  // References
+  reference String?
+  documents Document[] @relation("FlightBookingDocuments")
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("flight_bookings")
+}
+
+model FlightSegment {
+  id               String   @id @default(cuid())
+  bookingId        String
+  flightNumber     String
+  airline          String
+  departureDate    DateTime
+  departureTime    String
+  departureAirport String
+  arrivalDate      DateTime
+  arrivalTime      String
+  arrivalAirport   String
+  cabinClass       String
+  baggageAllowance String
+
+  // Relations
+  booking FlightBooking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@map("flight_segments")
+}
+
+model Passenger {
+  id             String   @id @default(cuid())
+  bookingId      String
+  firstName      String
+  lastName       String
+  dateOfBirth    DateTime
+  gender         String
+  passportNumber String?
+  nationality    String?
+
+  // Relations
+  booking FlightBooking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  tickets Ticket[]
+
+  @@map("passengers")
+}
+
+model Ticket {
+  id           String   @id @default(cuid())
+  bookingId    String
+  passengerId  String
+  ticketNumber String   @unique
+  status       String   @default("ISSUED")
+  issueDate    DateTime @default(now())
+
+  // Relations
+  booking   FlightBooking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  passenger Passenger     @relation(fields: [passengerId], references: [id], onDelete: Cascade)
+
+  @@map("tickets")
+}
+
 model Airline {
   id        String   @id @default(cuid())
   code      String   @unique // IATA code
@@ -278,7 +373,7 @@ model Airline {
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
+
   @@map("airlines")
 }
 
@@ -294,7 +389,7 @@ model Airport {
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
+
   @@map("airports")
 }
 
@@ -303,104 +398,106 @@ model Hotel {
   id          String   @id @default(cuid())
   name        String
   description String?
-  address     Json     // Structured address
+  address     Json // Structured address
   rating      Float?
   amenities   String[]
   images      String[]
-  policies    Json     // Hotel policies
-  contact     Json     // Contact information
+  policies    Json // Hotel policies
+  contact     Json // Contact information
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  
-  rooms       HotelRoom[]
-  reviews     Review[]
-  
+
+  rooms   HotelRoom[]
+  reviews Review[]
+
   @@map("hotels")
 }
 
 model HotelRoom {
-  id            String   @id @default(cuid())
-  hotelId       String
-  type          String
-  description   String?
-  maxOccupancy  Int
-  bedType       String
-  amenities     String[]
-  basePrice     Float
-  currency      Currency @default(USD)
-  images        String[]
-  isActive      Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  
-  hotel         Hotel    @relation(fields: [hotelId], references: [id], onDelete: Cascade)
-  
+  id           String   @id @default(cuid())
+  hotelId      String
+  type         String
+  description  String?
+  maxOccupancy Int
+  bedType      String
+  amenities    String[]
+  basePrice    Float
+  currency     Currency @default(USD)
+  images       String[]
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  hotel Hotel @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+
   @@map("hotel_rooms")
 }
 
 // Reviews and Ratings
 model Review {
-  id            String         @id @default(cuid())
-  userId        String
-  bookingId     String?
-  packageId     String?
-  hotelId       String?
-  rating        Int            // 1-5 stars
-  title         String?
-  comment       String
-  images        String[]
-  isVerified    Boolean        @default(false)
-  isPublished   Boolean        @default(true)
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  
+  id          String   @id @default(cuid())
+  userId      String
+  bookingId   String?
+  packageId   String?
+  hotelId     String?
+  rating      Int // 1-5 stars
+  title       String?
+  comment     String
+  images      String[]
+  isVerified  Boolean  @default(false)
+  isPublished Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
   // Relations
-  user          User           @relation(fields: [userId], references: [id])
-  booking       Booking?       @relation(fields: [bookingId], references: [id])
-  package       TravelPackage? @relation(fields: [packageId], references: [id])
-  hotel         Hotel?         @relation(fields: [hotelId], references: [id])
-  
+  user    User           @relation(fields: [userId], references: [id])
+  booking Booking?       @relation(fields: [bookingId], references: [id])
+  package TravelPackage? @relation(fields: [packageId], references: [id])
+  hotel   Hotel?         @relation(fields: [hotelId], references: [id])
+
   @@map("reviews")
 }
 
 // Document Management
 model Document {
-  id          String       @id @default(cuid())
-  userId      String
-  bookingId   String?
-  type        DocumentType
-  name        String
-  originalName String
-  mimeType    String
-  size        Int
-  url         String
-  isPublic    Boolean      @default(false)
-  expiresAt   DateTime?
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  
+  id              String       @id @default(cuid())
+  userId          String
+  bookingId       String?
+  flightBookingId String?
+  type            DocumentType
+  name            String
+  originalName    String
+  mimeType        String
+  size            Int
+  url             String
+  isPublic        Boolean      @default(false)
+  expiresAt       DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
   // Relations
-  user        User         @relation(fields: [userId], references: [id])
-  booking     Booking?     @relation(fields: [bookingId], references: [id])
-  
+  user          User           @relation(fields: [userId], references: [id])
+  booking       Booking?       @relation(fields: [bookingId], references: [id])
+  flightBooking FlightBooking? @relation("FlightBookingDocuments", fields: [flightBookingId], references: [id])
+
   @@map("documents")
 }
 
 // Notifications
 model Notification {
-  id          String           @id @default(cuid())
-  userId      String
-  type        NotificationType
-  title       String
-  message     String
-  data        Json?
-  isRead      Boolean          @default(false)
-  readAt      DateTime?
-  createdAt   DateTime         @default(now())
-  
-  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  message   String
+  data      Json?
+  isRead    Boolean          @default(false)
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@map("notifications")
 }
 
@@ -413,7 +510,7 @@ model SystemConfig {
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  
+
   @@map("system_config")
 }
 
@@ -552,5 +649,79 @@ enum LoyaltyTransactionType {
   EARNED
   REDEEMED
   EXPIRED
-  BONUS
+}
+
+enum SupportTicketStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING_CUSTOMER_RESPONSE
+  WAITING_SUPPORT_RESPONSE
+  RESOLVED
+  CLOSED
+  REOPENED
+}
+
+model SupportTicket {
+  id          String        @id @default(cuid())
+  title       String
+  description String
+  status      SupportTicketStatus @default(OPEN)
+  priority    Int           @default(1)
+  category    String?
+  userId      String
+  assignedTo  String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  closedAt    DateTime?
+  
+  // Relations
+  user           User                  @relation(fields: [userId], references: [id])
+  assignedToUser User?                 @relation("AssignedTickets", fields: [assignedTo], references: [id])
+  messages       SupportTicketMessage[]
+  chatMessages   ChatMessage[]
+  
+  @@index([userId])
+  @@index([assignedTo])
+  @@index([status])
+  @@map("support_tickets")
+}
+
+model SupportTicketMessage {
+  id         String   @id @default(cuid())
+  content    String
+  ticketId   String
+  userId     String
+  isInternal Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  
+  // Relations
+  ticket     SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  user       User          @relation(fields: [userId], references: [id])
+  
+  @@index([ticketId])
+  @@index([userId])
+  @@map("support_ticket_messages")
+}
+
+model ChatMessage {
+  id          String   @id @default(cuid())
+  content     String
+  ticketId    String?
+  senderId    String
+  recipientId String?
+  read        Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  sender    User          @relation("SentMessages", fields: [senderId], references: [id])
+  recipient User?         @relation("ReceivedMessages", fields: [recipientId], references: [id])
+  ticket    SupportTicket? @relation(fields: [ticketId], references: [id])
+
+  @@index([senderId])
+  @@index([recipientId])
+  @@index([ticketId])
+  @@index([createdAt])
+  @@map("chat_messages")
 }
