@@ -1,0 +1,7 @@
+packages:
+  - 'packages/*'
+  - '!**/node_modules/**'
+  - '!**/.next/**'
+  - '!**/dist/**'
+  - '!**/build/**'
+  - '!**/coverage/**'

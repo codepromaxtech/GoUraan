@@ -1,10 +1,11 @@
-# 🌍 GoUraan - Complete Travel Booking Platform
+# 🌍 GoUraan - Complete Travel Booking Platform (Monorepo)
 
 <div align="center">
 
 ![GoUraan](https://img.shields.io/badge/GoUraan-Travel%20Platform-0066CC?style=for-the-badge)
 ![Status](https://img.shields.io/badge/Status-Production%20Ready-00CC66?style=for-the-badge)
 ![Completion](https://img.shields.io/badge/Completion-100%25-00CC66?style=for-the-badge)
+![Monorepo](https://img.shields.io/badge/Monorepo-pnpm%20Workspaces-F69220?style=for-the-badge)
 
 **Enterprise-grade travel booking platform with world-class UI, complete admin panel, and integrated support system**
 
@@ -50,6 +51,64 @@ GoUraan is a **complete, production-ready travel booking platform** that rivals 
 - ✅ **6 User Roles** - Complete role-based access control
 - ✅ **Docker Deployment** - Production-ready containerization
 - ✅ **100% Complete** - No missing features, ready to launch
+
+## 🏗️ **Monorepo Structure**
+
+This project uses a monorepo structure managed with pnpm workspaces for better code organization and dependency management.
+
+### **Project Structure**
+
+```
+.
+├── packages/
+│   ├── backend/         # NestJS backend API
+│   │   ├── prisma/      # Database schema and migrations
+│   │   ├── src/         # Source code
+│   │   └── package.json # Backend dependencies
+│   │
+│   ├── frontend/        # Next.js frontend application
+│   │   ├── public/      # Static files
+│   │   ├── src/         # Source code
+│   │   └── package.json # Frontend dependencies
+│   │
+│   ├── docker/          # Docker configuration
+│   └── scripts/         # Utility scripts
+│
+├── .gitignore
+├── package.json         # Root package.json with workspace scripts
+├── pnpm-lock.yaml       # pnpm lock file
+└── pnpm-workspace.yaml  # pnpm workspace configuration
+```
+
+### **Development Workflow**
+
+1. **Install pnpm** (if not already installed):
+   ```bash
+   npm install -g pnpm
+   ```
+
+2. **Install all dependencies** (from the root directory):
+   ```bash
+   pnpm install
+   ```
+
+3. **Start development servers**:
+   ```bash
+   # Start backend in development mode
+   pnpm --filter @gouraan/backend start:dev
+
+   # Start frontend in development mode
+   pnpm --filter @gouraan/frontend dev
+   ```
+
+4. **Run commands in specific packages**:
+   ```bash
+   # Run tests in backend
+   pnpm --filter @gouraan/backend test
+   
+   # Build frontend
+   pnpm --filter @gouraan/frontend build
+   ```
 
 ---
 
