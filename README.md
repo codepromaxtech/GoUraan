@@ -54,6 +54,37 @@ GoUraan is a **complete, production-ready travel booking platform** that rivals 
 
 ## 🏗️ **Monorepo Structure**
 
+### 📊 **Data Models**
+
+#### User Management
+- **User**: Core user account information, authentication, and role-based access control
+- **UserProfile**: Extended user details, contact information, and preferences
+
+#### Flight Management
+- **Airline**: Airline information and details
+- **Airport**: Airport information with location data
+- **Flight**: Flight schedules, pricing, and availability
+- **FlightSeat**: Seat configuration and availability for flights
+
+#### Hotel Management
+- **Hotel**: Hotel information, amenities, and location
+- **RoomType**: Room categories with pricing and capacity
+- **Room**: Individual room inventory and status
+
+#### Booking & Payments
+- **Booking**: Flight and hotel reservations
+- **Payment**: Transaction records and payment processing
+
+#### Support System
+- **SupportTicket**: Customer support requests and tracking
+- **SupportMessage**: Communication history within support tickets
+
+#### Reviews & Feedback
+- **Review**: Customer reviews and ratings for hotels
+- **Notification**: System and user notifications
+
+---
+
 T
 ### **Development Workflow**
 
