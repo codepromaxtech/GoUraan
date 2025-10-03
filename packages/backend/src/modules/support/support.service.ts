@@ -1,0 +1,1067 @@
+import { 
+  Injectable, 
+  NotFoundException, 
+  BadRequestException, 
+  InternalServerErrorException,
+  Logger,
+  Inject,
+  forwardRef
+} from '@nestjs/common';
+import { PrismaService } from '@/common/prisma/prisma.service';
+import { CreateSupportTicketDto } from './dto/create-support-ticket.dto';
+import { UpdateSupportTicketDto } from './dto/update-support-ticket.dto';
+import { SupportTicketEntity } from './entities/support-ticket.entity';
+import { 
+  SupportTicketStatus, 
+  SupportTicketPriority, 
+  SupportTicketCategory,
+  UserRole,
+  Prisma,
+  Message,
+  User
+} from '@prisma/client';
+import { PaginatedResult } from '@/common/interfaces/paginated-result.interface';
+import { EmailService } from '@/modules/email/email.service';
+import { SupportGateway } from './support.gateway';
+import { ConfigService } from '@nestjs/config';
+
+export interface SupportMessage extends Omit<Message, 'createdAt' | 'updatedAt'> {
+  createdAt: string;
+  updatedAt: string;
+  sender?: Pick<User, 'id' | 'firstName' | 'lastName' | 'email' | 'avatar'>;
+}
+
+@Injectable()
+export class SupportService {
+  private readonly logger = new Logger(SupportService.name);
+
+  constructor(
+    private prisma: PrismaService,
+    private readonly emailService: EmailService,
+    @Inject(forwardRef(() => SupportGateway))
+    private readonly supportGateway: SupportGateway,
+    private readonly configService: ConfigService
+  ) {}
+
+  /**
+   * Create a new support ticket
+   */
+  async createTicket(
+    userId: string, 
+    createSupportTicketDto: CreateSupportTicketDto
+  ): Promise<SupportTicketEntity> {
+    try {
+      // If booking or payment ID is provided, validate they exist
+      if (createSupportTicketDto.bookingId) {
+        await this.validateBookingExists(createSupportTicketDto.bookingId, userId);
+      }
+      
+      if (createSupportTicketDto.paymentId) {
+        await this.validatePaymentExists(createSupportTicketDto.paymentId, userId);
+      }
+
+      const ticket = await this.prisma.supportTicket.create({
+        data: {
+          ...createSupportTicketDto,
+          userId,
+          status: 'OPEN',
+          tags: createSupportTicketDto.tags || [],
+          attachments: createSupportTicketDto.attachments || [],
+        },
+      });
+
+      this.logger.log(`Support ticket created: ${ticket.id}`);
+      
+      // Notify support team about the new ticket
+      await this.notifySupportTeam(ticket.id);
+      
+      return new SupportTicketEntity(ticket);
+    } catch (error) {
+      this.handleError(error, 'Failed to create support ticket');
+    }
+  }
+
+  /**
+   * Get all support tickets with pagination and filtering
+   */
+  async findAllTickets(
+    page = 1,
+    limit = 10,
+    userId?: string,
+    status?: SupportTicketStatus,
+    priority?: SupportTicketPriority,
+    category?: SupportTicketCategory,
+    assignedToId?: string,
+    search?: string,
+  ): Promise<PaginatedResult<SupportTicketEntity>> {
+    const skip = (page - 1) * limit;
+    const take = Math.min(limit, 100); // Limit page size to 100
+
+    const where: any = {};
+    
+    if (userId) where.userId = userId;
+    if (status) where.status = status;
+    if (priority) where.priority = priority;
+    if (category) where.category = category;
+    if (assignedToId) where.assignedToId = assignedToId;
+    
+    if (search) {
+      where.OR = [
+        { subject: { contains: search, mode: 'insensitive' } },
+        { description: { contains: search, mode: 'insensitive' } },
+        { tags: { has: search } },
+      ];
+    }
+
+    try {
+      const [total, items] = await Promise.all([
+        this.prisma.supportTicket.count({ where }),
+        this.prisma.supportTicket.findMany({
+          skip,
+          take,
+          where,
+          orderBy: { 
+            priority: 'desc',
+            createdAt: 'desc' 
+          },
+          include: {
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+              },
+            },
+            assignedTo: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+              },
+            },
+          },
+        }),
+      ]);
+
+      return {
+        data: items.map(ticket => new SupportTicketEntity(ticket)),
+        meta: {
+          total,
+          page,
+          limit: take,
+          totalPages: Math.ceil(total / take),
+        },
+      };
+    } catch (error) {
+      this.handleError(error, 'Failed to retrieve support tickets');
+    }
+  }
+
+  /**
+   * Get a single support ticket by ID
+   */
+  async findTicketById(id: string, userId?: string): Promise<SupportTicketEntity> {
+    try {
+      const ticket = await this.prisma.supportTicket.findUnique({
+        where: { id },
+        include: {
+          user: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+            },
+          },
+          assignedTo: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+            },
+          },
+          messages: {
+            orderBy: { createdAt: 'asc' },
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  firstName: true,
+                  lastName: true,
+                  email: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (!ticket) {
+        throw new NotFoundException(`Support ticket with ID ${id} not found`);
+      }
+
+      // Only the ticket owner, assigned agent, or admin can view the ticket
+      if (userId && ticket.userId !== userId && 
+          ticket.assignedToId !== userId && 
+          !(await this.isAdmin(userId))) {
+        throw new BadRequestException('You are not authorized to view this ticket');
+      }
+
+      return new SupportTicketEntity(ticket);
+    } catch (error) {
+      this.handleError(error, `Failed to retrieve support ticket ${id}`);
+    }
+  }
+
+  /**
+   * Update a support ticket
+   */
+  async updateTicket(
+    id: string, 
+    updateSupportTicketDto: UpdateSupportTicketDto,
+    userId: string,
+    isAdmin: boolean = false
+  ): Promise<SupportTicketEntity> {
+    try {
+      const ticket = await this.prisma.supportTicket.findUnique({
+        where: { id },
+      });
+
+      if (!ticket) {
+        throw new NotFoundException(`Support ticket with ID ${id} not found`);
+      }
+
+      // Check permissions
+      if (!isAdmin && ticket.userId !== userId) {
+        throw new BadRequestException('You are not authorized to update this ticket');
+      }
+
+      // If assigning to an agent, verify the agent exists
+      if (updateSupportTicketDto.assignedToId) {
+        await this.validateUserIsAgent(updateSupportTicketDto.assignedToId);
+      }
+
+      const updatedTicket = await this.prisma.supportTicket.update({
+        where: { id },
+        data: {
+          ...updateSupportTicketDto,
+          // Only allow status changes from admins/agents
+          ...(isAdmin && updateSupportTicketDto.status && {
+            status: updateSupportTicketDto.status,
+            ...(updateSupportTicketDto.status === 'CLOSED' && {
+              closedAt: new Date(),
+              closedById: userId,
+            }),
+          }),
+        },
+      });
+
+      this.logger.log(`Support ticket updated: ${id}`);
+      return new SupportTicketEntity(updatedTicket);
+    } catch (error) {
+      this.handleError(error, `Failed to update support ticket ${id}`);
+    }
+  }
+
+  /**
+   * Add a message to a support ticket
+   */
+  async addMessage(
+    ticketId: string,
+    userId: string,
+    message: string,
+    attachments: string[] = []
+  ): Promise<SupportTicketEntity> {
+    if (!message?.trim()) {
+      throw new BadRequestException('Message cannot be empty');
+    }
+
+    try {
+      const ticket = await this.prisma.supportTicket.findUnique({
+        where: { id: ticketId },
+      });
+
+      if (!ticket) {
+        throw new NotFoundException(`Support ticket with ID ${ticketId} not found`);
+      }
+
+      // Check if user is the ticket owner, assigned agent, or admin
+      const isAdmin = await this.isAdmin(userId);
+      if (ticket.userId !== userId && ticket.assignedToId !== userId && !isAdmin) {
+        throw new BadRequestException('You are not authorized to add messages to this ticket');
+      }
+
+      // If this is the first response from support, update the ticket status
+      const isFirstResponse = ticket.status === 'OPEN' && ticket.userId !== userId;
+      
+      await this.prisma.supportTicketMessage.create({
+        data: {
+          ticketId,
+          userId,
+          message,
+          attachments,
+        },
+      });
+
+      // Update the ticket status if needed
+      if (isFirstResponse) {
+        await this.prisma.supportTicket.update({
+          where: { id: ticketId },
+          data: { status: 'IN_PROGRESS' },
+        });
+      }
+
+      // Notify the other party about the new message
+      await this.notifyNewMessage(ticketId, userId, message);
+
+      return this.findTicketById(ticketId);
+    } catch (error) {
+      this.handleError(error, `Failed to add message to ticket ${ticketId}`);
+    }
+  }
+
+  /**
+   * Close a support ticket
+   */
+  async closeTicket(
+    id: string, 
+    userId: string, 
+    reason?: string
+  ): Promise<SupportTicketEntity> {
+    try {
+      const ticket = await this.prisma.supportTicket.findUnique({
+        where: { id },
+      });
+
+      if (!ticket) {
+        throw new NotFoundException(`Support ticket with ID ${id} not found`);
+      }
+
+      // Only the ticket owner, assigned agent, or admin can close the ticket
+      const isAdmin = await this.isAdmin(userId);
+      if (ticket.userId !== userId && ticket.assignedToId !== userId && !isAdmin) {
+        throw new BadRequestException('You are not authorized to close this ticket');
+      }
+
+      const updatedTicket = await this.prisma.supportTicket.update({
+        where: { id },
+        data: {
+          status: 'CLOSED',
+          closedAt: new Date(),
+          closedById: userId,
+          closeReason: reason,
+        },
+      });
+
+      this.logger.log(`Support ticket closed: ${id}`);
+      return new SupportTicketEntity(updatedTicket);
+    } catch (error) {
+      this.handleError(error, `Failed to close support ticket ${id}`);
+    }
+  }
+
+  /**
+   * Rate a closed support ticket
+   */
+  async rateTicket(
+    id: string, 
+    userId: string, 
+    rating: number, 
+    feedback?: string
+  ): Promise<SupportTicketEntity> {
+    if (rating < 1 || rating > 5) {
+      throw new BadRequestException('Rating must be between 1 and 5');
+    }
+
+    try {
+      const ticket = await this.prisma.supportTicket.findUnique({
+        where: { id },
+      });
+
+      if (!ticket) {
+        throw new NotFoundException(`Support ticket with ID ${id} not found`);
+      }
+
+      // Only the ticket owner can rate the ticket
+      if (ticket.userId !== userId) {
+        throw new BadRequestException('Only the ticket owner can rate this ticket');
+      }
+
+      // Only closed tickets can be rated
+      if (ticket.status !== 'CLOSED') {
+        throw new BadRequestException('Only closed tickets can be rated');
+      }
+
+      // Check if already rated
+      if (ticket.rating) {
+        throw new BadRequestException('This ticket has already been rated');
+      }
+
+      const updatedTicket = await this.prisma.supportTicket.update({
+        where: { id },
+        data: {
+          rating,
+          feedback,
+        },
+      });
+
+      this.logger.log(`Support ticket rated: ${id} (${rating} stars)`);
+      return new SupportTicketEntity(updatedTicket);
+    } catch (error) {
+      this.handleError(error, `Failed to rate support ticket ${id}`);
+    }
+  }
+
+  /**
+   * Get ticket statistics
+   */
+  async getTicketStats(userId?: string) {
+    try {
+      const where = userId ? { userId } : {};
+      
+      const [
+        total,
+        open,
+        inProgress,
+        closed,
+        highPriority,
+        avgRating,
+        avgResponseTime,
+      ] = await Promise.all([
+        // Total tickets
+        this.prisma.supportTicket.count({ where }),
+        
+        // Open tickets
+        this.prisma.supportTicket.count({ 
+          where: { ...where, status: 'OPEN' } 
+        }),
+        
+        // In progress tickets
+        this.prisma.supportTicket.count({ 
+          where: { ...where, status: 'IN_PROGRESS' } 
+        }),
+        
+        // Closed tickets
+        this.prisma.supportTicket.count({ 
+          where: { ...where, status: 'CLOSED' } 
+        }),
+        
+        // High priority tickets
+        this.prisma.supportTicket.count({ 
+          where: { 
+            ...where, 
+            priority: 'HIGH',
+            status: { not: 'CLOSED' } 
+          } 
+        }),
+        
+        // Average rating (only for closed tickets with ratings)
+        this.prisma.supportTicket.aggregate({
+          where: { 
+            ...where, 
+            status: 'CLOSED',
+            rating: { not: null } 
+          },
+          _avg: { rating: true },
+        }),
+        
+        // TODO: Calculate average response time
+        // This would require tracking when tickets are first responded to
+        Promise.resolve(0),
+      ]);
+
+      return {
+        total,
+        open,
+        inProgress,
+        closed,
+        highPriority,
+        avgRating: avgRating._avg.rating || 0,
+        avgResponseTime, // In minutes
+      };
+    } catch (error) {
+      this.handleError(error, 'Failed to retrieve ticket statistics');
+    }
+  }
+
+  /**
+   * Validate that a booking exists and belongs to the user
+   */
+  private async validateBookingExists(bookingId: string, userId: string): Promise<void> {
+    try {
+      const booking = await this.prisma.booking.findUnique({
+        where: { id: bookingId },
+      });
+
+      if (!booking) {
+        throw new NotFoundException(`Booking with ID ${bookingId} not found`);
+      }
+
+      if (booking.userId !== userId) {
+        throw new BadRequestException('You do not have permission to create a ticket for this booking');
+      }
+    } catch (error) {
+      if (error instanceof NotFoundException || error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new InternalServerErrorException('Failed to validate booking');
+    }
+  }
+
+  /**
+   * Validate that a payment exists and belongs to the user
+   */
+  private async validatePaymentExists(paymentId: string, userId: string): Promise<void> {
+    try {
+      const payment = await this.prisma.payment.findUnique({
+        where: { id: paymentId },
+      });
+
+      if (!payment) {
+        throw new NotFoundException(`Payment with ID ${paymentId} not found`);
+      }
+
+      if (payment.userId !== userId) {
+        throw new BadRequestException('You do not have permission to create a ticket for this payment');
+      }
+    } catch (error) {
+      if (error instanceof NotFoundException || error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new InternalServerErrorException('Failed to validate payment');
+    }
+  }
+
+  /**
+   * Check if a user is an admin
+   */
+  private async isAdmin(userId: string): Promise<boolean> {
+    try {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { role: true },
+      });
+      // Only ADMIN is considered an admin in the current schema
+      return user?.role === UserRole.ADMIN;
+    } catch (error) {
+      this.logger.error(`Failed to check admin status for user ${userId}: ${error.message}`, error.stack);
+      return false;
+    }
+  }
+
+  /**
+   * Validate that a user is a support agent or admin
+   */
+  private async validateUserIsAgent(userId: string): Promise<void> {
+    try {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { 
+          role: true,
+          isActive: true,
+        },
+      });
+
+      if (!user) {
+        throw new BadRequestException(`User with ID ${userId} not found`);
+      }
+
+      if (!user.isActive) {
+        throw new BadRequestException('This user account is not active');
+      }
+
+      if (user.role !== UserRole.ADMIN && user.role !== UserRole.AGENT) {
+        throw new BadRequestException('The specified user is not an agent or admin');
+      }
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new InternalServerErrorException('Failed to validate support agent');
+    }
+  }
+
+  /**
+   * Notify the support team about a new ticket
+   */
+  private async notifySupportTeam(ticketId: string): Promise<void> {
+    try {
+      // In a real application, this would send a notification to the support team
+      // For example, via email, Slack, or a dedicated support dashboard
+      this.logger.log(`Notifying support team about new ticket: ${ticketId}`);
+      
+      // This is a placeholder for actual notification logic
+      // await this.notificationService.create({
+      //   type: 'NEW_SUPPORT_TICKET',
+      //   title: 'New Support Ticket Created',
+      //   message: `A new support ticket #${ticketId} has been created.`,
+      //   data: { ticketId },
+      //   // This would be the support team's notification channel or user IDs
+      //   recipients: ['support-team']
+      // });
+    } catch (error) {
+      // Don't fail the ticket creation if notification fails
+      this.logger.error(`Failed to notify support team about ticket ${ticketId}: ${error.message}`, error.stack);
+    }
+  }
+
+  /**
+   * Notify about a new message in a support ticket
+   */
+  private async notifyNewMessage(
+    ticketId: string, 
+    senderId: string,
+    message: string
+  ): Promise<void> {
+    try {
+      const ticket = await this.prisma.supportTicket.findUnique({
+        where: { id: ticketId },
+        include: {
+          user: { select: { id: true, email: true } },
+          assignedTo: { select: { id: true, email: true } },
+        },
+      });
+
+      if (!ticket) return;
+
+      // Determine who to notify
+      let recipientId: string | null = null;
+      
+      if (senderId === ticket.userId && ticket.assignedToId) {
+        // If the ticket owner sent a message, notify the assigned agent
+        recipientId = ticket.assignedToId;
+      } else if (senderId !== ticket.userId) {
+        // If an agent/admin sent a message, notify the ticket owner
+        recipientId = ticket.userId;
+      }
+
+      if (recipientId) {
+        // In a real application, this would send a notification to the recipient
+        this.logger.log(`Notifying user ${recipientId} about new message in ticket ${ticketId}`);
+        
+        // This is a placeholder for actual notification logic
+        // await this.notificationService.create({
+        //   type: 'NEW_SUPPORT_MESSAGE',
+        //   title: `New Message in Ticket #${ticketId}`,
+        //   message: message.length > 100 ? `${message.substring(0, 100)}...` : message,
+        //   data: { ticketId },
+        //   recipients: [recipientId]
+        // });
+      }
+    } catch (error) {
+      // Don't fail the message creation if notification fails
+      this.logger.error(
+        `Failed to notify about new message in ticket ${ticketId}: ${error.message}`, 
+        error.stack
+      );
+    }
+  }
+
+  /**
+   * Handle errors consistently
+   */
+  private handleError(error: any, defaultMessage: string): never {
+    this.logger.error(`${defaultMessage}: ${error.message}`, error.stack);
+    
+    if (
+      error instanceof NotFoundException ||
+      error instanceof BadRequestException
+    ) {
+      throw error;
+    }
+    
+    throw new InternalServerErrorException(defaultMessage);
+  }
+
+  /**
+   * Add a message to a support ticket with WebSocket notifications
+   */
+  async addMessageToTicket(
+    ticketId: string,
+    userId: string,
+    content: string,
+    attachments: string[] = [],
+    isInternalNote: boolean = false
+  ): Promise<SupportMessage> {
+    const ticket = await this.prisma.supportTicket.findUnique({
+      where: { id: ticketId },
+      include: { user: true, assignedTo: true }
+    });
+
+    if (!ticket) {
+      throw new NotFoundException(`Ticket with ID ${ticketId} not found`);
+    }
+
+    // Check if user has access to this ticket
+    if (ticket.userId !== userId && ticket.assignedToId !== userId) {
+      const isAgent = await this.isAdmin(userId) || await this.prisma.user.findFirst({
+        where: { 
+          id: userId,
+          roles: { has: UserRole.SUPPORT_AGENT }
+        }
+      });
+      
+      if (!isAgent) {
+        throw new BadRequestException('You do not have permission to add messages to this ticket');
+      }
+    }
+
+    const message = await this.prisma.message.create({
+      data: {
+        content,
+        ticketId,
+        senderId: userId,
+        isInternalNote,
+        attachments: { set: attachments },
+      },
+      include: {
+        sender: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            avatar: true,
+          },
+        },
+      },
+    });
+
+    // Update ticket's updatedAt timestamp
+    await this.prisma.supportTicket.update({
+      where: { id: ticketId },
+      data: { updatedAt: new Date() },
+    });
+
+    // Notify other users in the ticket
+    await this.notifyNewMessage(ticketId, userId, content);
+
+    // If this is a customer message and ticket is not assigned, try to auto-assign
+    if (!isInternalNote && !ticket.assignedToId) {
+      await this.autoAssignTicket(ticketId);
+    }
+
+    return {
+      ...message,
+      createdAt: message.createdAt.toISOString(),
+      updatedAt: message.updatedAt.toISOString(),
+    };
+  }
+
+  /**
+   * Get messages for a specific ticket
+   */
+  async getTicketMessages(
+    ticketId: string,
+    userId: string,
+    page: number = 1,
+    limit: number = 50
+  ): Promise<{ messages: SupportMessage[]; total: number }> {
+    // Verify user has access to this ticket
+    const ticket = await this.prisma.supportTicket.findUnique({
+      where: { id: ticketId },
+      select: { userId: true, assignedToId: true },
+    });
+
+    if (!ticket) {
+      throw new NotFoundException(`Ticket with ID ${ticketId} not found`);
+    }
+
+    if (ticket.userId !== userId && ticket.assignedToId !== userId) {
+      const isAgent = await this.isAdmin(userId) || await this.prisma.user.findFirst({
+        where: { 
+          id: userId,
+          roles: { has: UserRole.SUPPORT_AGENT }
+        }
+      });
+      
+      if (!isAgent) {
+        throw new BadRequestException('You do not have permission to view this ticket');
+      }
+    }
+
+    const [messages, total] = await Promise.all([
+      this.prisma.message.findMany({
+        where: { 
+          ticketId,
+          isInternalNote: false,
+        },
+        include: {
+          sender: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+              avatar: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'asc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      this.prisma.message.count({
+        where: { 
+          ticketId,
+          isInternalNote: false,
+        },
+      }),
+    ]);
+
+    return {
+      messages: messages.map(msg => ({
+        ...msg,
+        createdAt: msg.createdAt.toISOString(),
+        updatedAt: msg.updatedAt.toISOString(),
+      })),
+      total,
+    };
+  }
+
+  /**
+   * Auto-assign a ticket to an available agent
+   */
+  private async autoAssignTicket(ticketId: string): Promise<void> {
+    try {
+      // Find an available agent with the least number of open tickets
+      const availableAgent = await this.prisma.user.findFirst({
+        where: {
+          roles: { has: UserRole.SUPPORT_AGENT },
+          isActive: true,
+        },
+        select: {
+          id: true,
+          _count: {
+            select: {
+              assignedTickets: {
+                where: {
+                  status: { not: 'CLOSED' },
+                },
+              },
+            },
+          },
+        },
+        orderBy: {
+          assignedTickets: {
+            _count: 'asc',
+          },
+        },
+      });
+
+      if (availableAgent) {
+        await this.prisma.supportTicket.update({
+          where: { id: ticketId },
+          data: { 
+            assignedToId: availableAgent.id,
+            status: 'IN_PROGRESS',
+          },
+        });
+
+        // Notify the agent about the new assignment
+        this.supportGateway.notifyUser(availableAgent.id, 'ticketAssigned', {
+          ticketId,
+          assignedAt: new Date().toISOString(),
+        });
+      }
+    } catch (error) {
+      this.logger.error(`Failed to auto-assign ticket ${ticketId}: ${error.message}`, error.stack);
+    }
+  }
+
+  /**
+   * Create a support ticket from an incoming email
+   */
+  async createTicketFromEmail(
+    fromEmail: string,
+    subject: string,
+    content: string,
+    attachments: string[] = [],
+    metadata: Record<string, any> = {}
+  ): Promise<SupportTicketEntity> {
+    // Find or create user by email
+    let user = await this.prisma.user.findUnique({
+      where: { email: fromEmail },
+    });
+
+    // If user doesn't exist, create a guest user
+    if (!user) {
+      user = await this.prisma.user.create({
+        data: {
+          email: fromEmail,
+          isActive: false, // Mark as guest user
+          roles: ['CUSTOMER'],
+          // Extract name from email if possible
+          firstName: fromEmail.split('@')[0],
+          // Generate a random password (user will need to reset it)
+          password: require('crypto').randomBytes(16).toString('hex'),
+        },
+      });
+    }
+
+    // Create the ticket
+    const ticket = await this.prisma.supportTicket.create({
+      data: {
+        subject: subject || 'Support Request from Email',
+        description: content,
+        userId: user.id,
+        status: 'OPEN',
+        priority: 'NORMAL',
+        category: 'GENERAL',
+        source: 'EMAIL',
+        metadata: metadata,
+        attachments: { set: attachments },
+      },
+    });
+
+    // Auto-assign the ticket if possible
+    await this.autoAssignTicket(ticket.id);
+
+    // Send confirmation email to the user
+    await this.sendEmailResponse(ticket.id, {
+      subject: `[Ticket #${ticket.id}] We've received your request`,
+      message: `Thank you for contacting GoUraan support. Your ticket has been created and our team will get back to you soon.\n\nTicket ID: ${ticket.id}\nSubject: ${ticket.subject}`,
+      isInternalNote: false,
+    });
+
+    return ticket;
+  }
+
+  /**
+   * Send an email response to a ticket
+   */
+  async sendEmailResponse(
+    ticketId: string,
+    options: {
+      subject: string;
+      message: string;
+      isInternalNote: boolean;
+      attachments?: Array<{ filename: string; path: string }>;
+    },
+    userId?: string
+  ): Promise<void> {
+    const ticket = await this.prisma.supportTicket.findUnique({
+      where: { id: ticketId },
+      include: { user: true },
+    });
+
+    if (!ticket) {
+      throw new NotFoundException(`Ticket with ID ${ticketId} not found`);
+    }
+
+    // If user ID is provided, verify they have permission
+    if (userId) {
+      const hasPermission = await this.prisma.supportTicket.findFirst({
+        where: {
+          id: ticketId,
+          OR: [
+            { userId },
+            { assignedToId: userId },
+            { assignedTo: { roles: { has: UserRole.SUPPORT_AGENT } } },
+          ],
+        },
+      });
+
+      if (!hasPermission) {
+        throw new BadRequestException('You do not have permission to respond to this ticket');
+      }
+    }
+
+    // Send the email
+    await this.emailService.sendEmail({
+      to: ticket.user.email,
+      subject: options.subject,
+      template: 'support-response',
+      context: {
+        ticketId: ticket.id,
+        subject: ticket.subject,
+        status: ticket.status,
+        priority: ticket.priority,
+        message: options.message,
+        currentYear: new Date().getFullYear(),
+        ticketUrl: `${this.configService.get('FRONTEND_URL')}/support/tickets/${ticket.id}`,
+      },
+      attachments: options.attachments,
+    });
+
+    // Add the message to the ticket
+    await this.addMessageToTicket(
+      ticketId,
+      userId || 'system',
+      options.message,
+      options.attachments?.map(a => a.filename) || [],
+      options.isInternalNote
+    );
+  }
+
+  /**
+   * Notify user about ticket updates via email
+   */
+  async notifyUserByEmail(
+    ticketId: string,
+    notificationType: 'status_change' | 'agent_response' | 'ticket_created',
+    additionalContext: Record<string, any> = {}
+  ): Promise<void> {
+    const ticket = await this.prisma.supportTicket.findUnique({
+      where: { id: ticketId },
+      include: { user: true, assignedTo: true },
+    });
+
+    if (!ticket) {
+      this.logger.warn(`Ticket ${ticketId} not found for email notification`);
+      return;
+    }
+
+    let templateName: string;
+    let subject: string;
+    const context: Record<string, any> = {
+      ticketId: ticket.id,
+      subject: ticket.subject,
+      status: ticket.status,
+      priority: ticket.priority,
+      customerName: ticket.user.firstName || 'Customer',
+      currentYear: new Date().getFullYear(),
+      ticketUrl: `${this.configService.get('FRONTEND_URL')}/support/tickets/${ticket.id}`,
+      ...additionalContext,
+    };
+
+    switch (notificationType) {
+      case 'status_change':
+        templateName = 'ticket-status-update';
+        subject = `[Ticket #${ticket.id}] Status updated to ${ticket.status}`;
+        context.previousStatus = additionalContext.previousStatus || 'UNKNOWN';
+        break;
+      case 'agent_response':
+        templateName = 'support-response';
+        subject = `[Ticket #${ticket.id}] New response from support`;
+        context.agentName = ticket.assignedTo 
+          ? `${ticket.assignedTo.firstName} ${ticket.assignedTo.lastName}`
+          : 'Our Support Team';
+        break;
+      case 'ticket_created':
+        templateName = 'new-ticket';
+        subject = `[Ticket #${ticket.id}] We've received your request`;
+        break;
+      default:
+        this.logger.warn(`Unknown notification type: ${notificationType}`);
+        return;
+    }
+
+    try {
+      await this.emailService.sendEmail({
+        to: ticket.user.email,
+        subject,
+        template: templateName,
+        context,
+      });
+    } catch (error) {
+      this.logger.error(
+        `Failed to send ${notificationType} email for ticket ${ticketId}: ${error.message}`,
+        error.stack
+      );
+    }
+  }
+}
