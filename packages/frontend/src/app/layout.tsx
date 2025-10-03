@@ -2,8 +2,16 @@
 
 import { useEffect, useState } from 'react';
 import { Inter, Poppins } from 'next/font/google';
+import { SessionProvider } from 'next-auth/react';
+import dynamic from 'next/dynamic';
 import '@/styles/globals.css';
 import { QueryProvider } from '@/providers/query-provider';
+
+// Dynamically import LiveChat to avoid SSR issues
+const LiveChat = dynamic(
+  () => import('@/components/chat/LiveChat').then((mod) => mod.default),
+  { ssr: false }
+);
 
 const inter = Inter({
   subsets: ['latin'],
@@ -35,13 +43,16 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.variable} ${poppins.variable} min-h-screen bg-gray-50 antialiased`}>
         {mounted && (
-          <QueryProvider>
-            <div id="root">
-              {children}
-            </div>
-            <div id="modal-root" />
-            <div id="toast-root" />
-          </QueryProvider>
+          <SessionProvider>
+            <QueryProvider>
+              <div id="root">
+                {children}
+              </div>
+              <div id="modal-root" />
+              <div id="toast-root" />
+              <LiveChat />
+            </QueryProvider>
+          </SessionProvider>
         )}
       </body>
     </html>

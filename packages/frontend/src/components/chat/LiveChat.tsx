@@ -1,65 +1,159 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { io, Socket } from 'socket.io-client';
+import { useAuth } from '@/hooks/use-auth';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Icons } from '@/components/icons';
 
 interface Message {
   id: string;
-  text: string;
-  sender: 'user' | 'support';
-  timestamp: Date;
-  senderName?: string;
+  content: string;
+  sender: {
+    id: string;
+    name?: string | null;
+    email?: string | null;
+    avatar?: string | null;
+  };
+  timestamp: Date | string;
+  read: boolean;
 }
 
 export default function LiveChat() {
+  const { user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      text: 'Hello! How can we help you today?',
-      sender: 'support',
-      timestamp: new Date(),
-      senderName: 'Support Team'
-    }
-  ]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const socketRef = useRef<Socket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  // Function to load initial messages
+  const loadInitialMessages = useCallback(async () => {
+    try {
+      const response = await fetch('/api/chat/messages');
+      if (response.ok) {
+        const data = await response.json();
+        setMessages(data);
+      }
+    } catch (error) {
+      console.error('Error loading messages:', error);
+    }
+  }, []);
 
+  // Connect to WebSocket server
+  useEffect(() => {
+    if (!user) return;
+
+    // Initialize socket connection with auth token
+    const socket = io(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001', {
+      path: '/socket.io',
+      auth: {
+        token: localStorage.getItem('accessToken'),
+      },
+      transports: ['websocket'],
+      autoConnect: true,
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+    });
+
+    const onConnect = () => {
+      console.log('Connected to chat server');
+      setIsConnected(true);
+      
+      // Join user's personal room
+      socket.emit('joinRoom', { userId: user.id });
+      
+      // Load initial messages
+      loadInitialMessages();
+    };
+
+    socket.on('newMessage', (message: Message) => {
+      setMessages(prev => [...prev, message]);
+      
+      // If chat is not open, increment unread count
+      if (!isOpen) {
+        setUnreadCount(prev => prev + 1);
+      }
+    });
+
+    socket.on('userStatus', (data: { userId: string; isOnline: boolean }) => {
+      // Handle user online/offline status if needed
+      console.log(`User ${data.userId} is ${data.isOnline ? 'online' : 'offline'}`);
+    });
+
+    socket.on('disconnect', () => {
+      console.log('Disconnected from chat server');
+      setIsConnected(false);
+    });
+
+    socketRef.current = socket;
+
+    // Clean up on unmount
+    return () => {
+      socket.disconnect();
+    };
+  }, [user, isOpen]);
+
+  // Connect event listeners when socket is available
+  useEffect(() => {
+    if (!socketRef.current) return;
+    
+    const socket = socketRef.current;
+      } catch (error) {
+        console.error('Failed to load messages:', error);
+      }
+    };
+
+    if (user) {
+      loadMessages();
+    }
+  }, [user]);
+
+  // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
 
-  const handleSendMessage = () => {
-    if (inputMessage.trim()) {
-      const newMessage: Message = {
-        id: Date.now().toString(),
-        text: inputMessage,
-        sender: 'user',
-        timestamp: new Date(),
-      };
-      
-      setMessages([...messages, newMessage]);
-      setInputMessage('');
-      
-      // Simulate support typing
-      setIsTyping(true);
-      setTimeout(() => {
-        setIsTyping(false);
-        const supportReply: Message = {
-          id: (Date.now() + 1).toString(),
-          text: 'Thank you for your message. A support agent will respond shortly.',
-          sender: 'support',
-          timestamp: new Date(),
-          senderName: 'Support Team'
-        };
-        setMessages(prev => [...prev, supportReply]);
-      }, 2000);
+  const scrollToBottom = useCallback(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, []);
+
+  const handleSendMessage = async () => {
+    const messageContent = inputMessage.trim();
+    if (!messageContent || !socketRef.current || !user) return;
+
+    // Optimistically add message to UI
+    const tempId = Date.now().toString();
+    const tempMessage: Message = {
+      id: tempId,
+      content: messageContent,
+      sender: {
+        id: user.id,
+        name: user.name || 'You',
+        email: user.email,
+      },
+      timestamp: new Date(),
+      read: false,
+    };
+
+    setMessages(prev => [...prev, tempMessage]);
+    setInputMessage('');
+
+    try {
+      // Send message through WebSocket
+      socketRef.current.emit('sendMessage', {
+        content: messageContent,
+        recipientId: 'support', // or get from active conversation
+      });
+    } catch (error) {
+      console.error('Failed to send message:', error);
+      // Show error to user
     }
   };
 

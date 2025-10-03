@@ -97,7 +97,31 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       const { content, ticketId, recipientId } = data;
       
+      if (!content?.trim()) {
+        return { error: 'Message content is required' };
+      }
+
       // Save message to database
+      const message = await this.chatService.createMessage({
+        content: content.trim(),
+        senderId: userId,
+        ticketId,
+        recipientId,
+      });
+
+      // Determine the room to emit to
+      const room = ticketId ? `ticket_${ticketId}` : `user_${recipientId}`;
+      
+      // Emit to the specific room (ticket or direct message)
+      this.server.to(room).emit('newMessage', message);
+      
+      // If it's a direct message, also emit to the sender
+      if (recipientId) {
+        const senderRoom = `user_${userId}`;
+        this.server.to(senderRoom).emit('newMessage', message);
+      }
+
+      return { success: true, message };
       const message = await this.chatService.createMessage({
         content,
         senderId: userId,
