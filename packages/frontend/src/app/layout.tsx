@@ -6,6 +6,7 @@ import { SessionProvider } from 'next-auth/react';
 import dynamic from 'next/dynamic';
 import '@/styles/globals.css';
 import { QueryProvider } from '@/providers/query-provider';
+import { AuthProvider } from '@/contexts/AuthContext';
 
 // Dynamically import LiveChat to avoid SSR issues
 const LiveChat = dynamic(
@@ -40,20 +41,16 @@ export default function RootLayout({
   }, []);
 
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className={`${inter.variable} ${poppins.variable} min-h-screen bg-gray-50 antialiased`}>
-        {mounted && (
+    <html lang="en" className={`${inter.variable} ${poppins.variable}`}>
+      <body className="min-h-screen bg-background font-sans antialiased">
+        <QueryProvider>
           <SessionProvider>
-            <QueryProvider>
-              <div id="root">
-                {children}
-              </div>
-              <div id="modal-root" />
-              <div id="toast-root" />
+            <AuthProvider>
+              {children}
               <LiveChat />
-            </QueryProvider>
+            </AuthProvider>
           </SessionProvider>
-        )}
+        </QueryProvider>
       </body>
     </html>
   );

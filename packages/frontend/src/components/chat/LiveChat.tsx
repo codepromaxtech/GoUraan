@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { io, Socket } from 'socket.io-client';
-import { useAuth } from '@/hooks/use-auth';
+import { io, type Socket } from 'socket.io-client';
+import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Icons } from '@/components/icons';
+import type { User } from '@/types/auth';
 
 interface Message {
   id: string;
@@ -21,7 +22,7 @@ interface Message {
 }
 
 export default function LiveChat() {
-  const { user } = useAuth();
+  const { user, isAuthenticated, isLoading } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -47,7 +48,7 @@ export default function LiveChat() {
 
   // Connect to WebSocket server
   useEffect(() => {
-    if (!user) return;
+    if (isLoading || !isAuthenticated || !user) return;
 
     // Initialize socket connection with auth token
     const socket = io(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001', {
@@ -98,21 +99,40 @@ export default function LiveChat() {
     return () => {
       socket.disconnect();
     };
-  }, [user, isOpen]);
+  }, [user, isOpen, isAuthenticated, isLoading]);
 
   // Connect event listeners when socket is available
   useEffect(() => {
-    if (!socketRef.current) return;
+    if (!socketRef.current || !user) return;
     
     const socket = socketRef.current;
+    
+    // Set up any additional socket event listeners here
+    // For example:
+    // socket.on('someEvent', (data) => {
+    //   // Handle event
+    // });
+    
+    // Load initial messages
+    const loadMessages = async () => {
+      try {
+        const response = await fetch('/api/chat/messages');
+        if (response.ok) {
+          const data = await response.json();
+          setMessages(data);
+        }
       } catch (error) {
         console.error('Failed to load messages:', error);
       }
     };
-
-    if (user) {
-      loadMessages();
-    }
+    
+    loadMessages();
+    
+    // Cleanup function
+    return () => {
+      // Clean up any event listeners if needed
+      // socket.off('someEvent');
+    };
   }, [user]);
 
   // Auto-scroll to bottom when new messages arrive
