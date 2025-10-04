@@ -435,20 +435,31 @@ model HotelRoom {
 }
 
 // Reviews and Ratings
+enum ReviewType {
+  HOTEL
+  PACKAGE
+  FLIGHT
+  ACTIVITY
+  GENERAL
+}
+
 model Review {
-  id          String   @id @default(cuid())
+  id          String     @id @default(cuid())
   userId      String
   bookingId   String?
   packageId   String?
   hotelId     String?
-  rating      Int // 1-5 stars
+  type        ReviewType @default(GENERAL)
+  itemId      String?    // Generic item ID for the entity being reviewed
+  rating      Int        // 1-5 stars
   title       String?
   comment     String
   images      String[]
-  isVerified  Boolean  @default(false)
-  isPublished Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  isVerified  Boolean    @default(false)
+  isApproved  Boolean    @default(false) // Whether the review has been approved by an admin
+  isPublished Boolean    @default(false) // Whether the review is visible to the public
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
 
   // Relations
   user    User           @relation(fields: [userId], references: [id])

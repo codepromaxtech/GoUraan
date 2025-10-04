@@ -2,7 +2,7 @@
 import { Resolver, Query, Mutation, Args, Int } from '@nestjs/graphql';
 import { UseGuards } from '@nestjs/common';
 import { UsersService } from './users.service';
-import { UpdateUserDto, UpdateUserPreferencesDto } from './dto';
+import { UpdateUserDto, UpdateUserPreferencesDto, Language, Currency, SeatPreference } from './dto/update-preferences.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -10,7 +10,23 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { UserRole, UserStatus } from '@prisma/client';
 
 // GraphQL Types
-import { ObjectType, Field, InputType } from '@nestjs/graphql';
+import { ObjectType, Field, InputType, registerEnumType } from '@nestjs/graphql';
+
+// Register enums with GraphQL
+registerEnumType(Language, {
+  name: 'Language',
+  description: 'Supported languages',
+});
+
+registerEnumType(Currency, {
+  name: 'Currency',
+  description: 'Supported currencies',
+});
+
+registerEnumType(SeatPreference, {
+  name: 'SeatPreference',
+  description: 'Preferred seat types',
+});
 
 @ObjectType()
 export class UserType {
@@ -88,18 +104,17 @@ export class UpdateUserInput {
 
   @Field({ nullable: true })
   phone?: string;
-
   @Field({ nullable: true })
   avatar?: string;
 }
 
 @InputType()
 export class UpdateUserPreferencesInput {
-  @Field({ nullable: true })
-  language?: string;
+  @Field(() => Language, { nullable: true })
+  language?: Language;
 
-  @Field({ nullable: true })
-  currency?: string;
+  @Field(() => Currency, { nullable: true })
+  currency?: Currency;
 
   @Field({ nullable: true })
   timezone?: string;
@@ -116,17 +131,15 @@ export class UpdateUserPreferencesInput {
   @Field({ nullable: true })
   marketingEmails?: boolean;
 
-  @Field({ nullable: true })
-  seatPreference?: string;
+  @Field(() => SeatPreference, { nullable: true })
+  seatPreference?: SeatPreference | null;
 
   @Field({ nullable: true })
-  mealPreference?: string;
+  mealPreference?: string | null;
 
   @Field(() => [String], { nullable: true })
   specialAssistance?: string[];
 }
-
-@Resolver(() => UserType)
 export class UsersResolver {
   constructor(private readonly usersService: UsersService) {}
 

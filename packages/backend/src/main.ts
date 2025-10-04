@@ -60,11 +60,11 @@ async function bootstrap() {
     }),
   );
 
-  // API versioning
+  // API versioning - Using URI versioning for better compatibility
   app.enableVersioning({
-    type: VersioningType.HEADER,
-    header: 'X-API-Version',
+    type: VersioningType.URI,
     defaultVersion: '1',
+    prefix: 'v',
   });
 
   // Swagger documentation

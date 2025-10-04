@@ -155,12 +155,27 @@ export class UsersService extends BaseCrudService<User, CreateUserDto, UpdateUse
   }
 
   async updatePreferences(userId: string, updatePreferencesDto: UpdateUserPreferencesDto) {
+    // Map DTO to Prisma model fields
+    const updateData: any = { ...updatePreferencesDto };
+    
+    // Handle special cases or transformations if needed
+    // For example, if you need to handle nested objects or arrays
+    
     const preferences = await this.prisma.userPreferences.upsert({
       where: { userId },
-      update: updatePreferencesDto,
+      update: updateData,
       create: {
         userId,
-        ...updatePreferencesDto,
+        ...updateData,
+        // Ensure required fields have default values if not provided
+        language: updateData.language || 'EN',
+        currency: updateData.currency || 'USD',
+        timezone: updateData.timezone || 'UTC',
+        emailNotifications: updateData.emailNotifications !== undefined ? updateData.emailNotifications : true,
+        smsNotifications: updateData.smsNotifications !== undefined ? updateData.smsNotifications : false,
+        pushNotifications: updateData.pushNotifications !== undefined ? updateData.pushNotifications : true,
+        marketingEmails: updateData.marketingEmails !== undefined ? updateData.marketingEmails : true,
+        specialAssistance: updateData.specialAssistance || [],
       },
     });
 

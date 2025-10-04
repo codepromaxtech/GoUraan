@@ -1,49 +1,109 @@
-import { IsBoolean, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsEnum, IsOptional, IsString, IsArray } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
-export class UpdateUserPreferencesDto {
-  @ApiPropertyOptional({ description: 'User preferred language code (e.g., en, ar)' })
-  @IsString()
-  @IsOptional()
-  language?: string;
+export enum Language {
+  EN = 'EN',
+  AR = 'AR',
+  // Add other language codes as needed
+}
 
-  @ApiPropertyOptional({ description: 'User preferred timezone (e.g., Asia/Riyadh)' })
+export enum Currency {
+  USD = 'USD',
+  SAR = 'SAR',
+  EUR = 'EUR',
+  // Add other currency codes as needed
+}
+
+export enum SeatPreference {
+  WINDOW = 'WINDOW',
+  AISLE = 'AISLE',
+  EXIT = 'EXIT',
+  // Add other seat preferences as needed
+}
+
+export class UpdateUserPreferencesDto {
+  @ApiPropertyOptional({ 
+    description: 'User preferred language',
+    enum: Language,
+    default: Language.EN 
+  })
+  @IsEnum(Language)
+  @IsOptional()
+  language?: Language;
+
+  @ApiPropertyOptional({ 
+    description: 'User preferred timezone',
+    default: 'UTC' 
+  })
   @IsString()
   @IsOptional()
   timezone?: string;
 
-  @ApiPropertyOptional({ description: 'Whether to receive marketing emails' })
+  @ApiPropertyOptional({ 
+    description: 'User preferred currency',
+    enum: Currency,
+    default: Currency.USD 
+  })
+  @IsEnum(Currency)
+  @IsOptional()
+  currency?: Currency;
+
+  @ApiPropertyOptional({ 
+    description: 'Whether to receive email notifications',
+    default: true 
+  })
   @IsBoolean()
   @IsOptional()
-  receiveMarketingEmails?: boolean;
+  emailNotifications?: boolean;
 
-  @ApiPropertyOptional({ description: 'Whether to receive promotional emails' })
+  @ApiPropertyOptional({ 
+    description: 'Whether to receive SMS notifications',
+    default: false 
+  })
   @IsBoolean()
   @IsOptional()
-  receivePromotionalEmails?: boolean;
+  smsNotifications?: boolean;
 
-  @ApiPropertyOptional({ description: 'Whether to receive SMS notifications' })
+  @ApiPropertyOptional({ 
+    description: 'Whether to receive push notifications',
+    default: true 
+  })
   @IsBoolean()
   @IsOptional()
-  receiveSmsNotifications?: boolean;
+  pushNotifications?: boolean;
 
-  @ApiPropertyOptional({ description: 'Whether to receive push notifications' })
+  @ApiPropertyOptional({ 
+    description: 'Whether to receive marketing emails',
+    default: true 
+  })
   @IsBoolean()
   @IsOptional()
-  receivePushNotifications?: boolean;
+  marketingEmails?: boolean;
 
-  @ApiPropertyOptional({ description: 'Preferred currency for display' })
+  @ApiPropertyOptional({ 
+    description: 'Preferred seat type',
+    enum: SeatPreference,
+    required: false 
+  })
+  @IsEnum(SeatPreference)
+  @IsOptional()
+  seatPreference?: SeatPreference | null;
+
+  @ApiPropertyOptional({ 
+    description: 'Meal preference',
+    required: false 
+  })
   @IsString()
   @IsOptional()
-  preferredCurrency?: string;
+  mealPreference?: string | null;
 
-  @ApiPropertyOptional({ description: 'Preferred theme (light/dark/system)' })
-  @IsString()
+  @ApiPropertyOptional({ 
+    description: 'Special assistance requirements',
+    type: [String],
+    required: false 
+  })
+  @IsArray()
+  @IsString({ each: true })
   @IsOptional()
-  themePreference?: 'light' | 'dark' | 'system';
-
-  @ApiPropertyOptional({ description: 'Whether to show onboarding tour' })
-  @IsBoolean()
-  @IsOptional()
-  showOnboardingTour?: boolean;
+  specialAssistance?: string[];
 }

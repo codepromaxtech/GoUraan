@@ -4,16 +4,29 @@ import * as request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/common/prisma/prisma.service';
 import { PrismaModule } from '../src/common/prisma/prisma.module';
+import { UserRole, UserStatus } from '@prisma/client';
 
 let app: INestApplication;
 let prisma: PrismaService;
 
-const testUser = {
+interface TestUser {
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  role: UserRole;
+  status?: UserStatus;
+  emailVerified?: boolean;
+}
+
+const testUser: TestUser = {
   email: 'test@example.com',
   password: 'Test@123',
   firstName: 'Test',
   lastName: 'User',
-  role: 'CUSTOMER',
+  role: UserRole.CUSTOMER,
+  status: UserStatus.ACTIVE,
+  emailVerified: true,
 };
 
 const setupTestApp = async () => {
@@ -31,12 +44,11 @@ const setupTestApp = async () => {
 };
 
 const createTestUser = async (prisma: PrismaService) => {
+  const { password, ...userData } = testUser;
   return prisma.user.create({
     data: {
-      ...testUser,
-      password: await require('bcryptjs').hash(testUser.password, 12),
-      status: 'ACTIVE',
-      emailVerified: true,
+      ...userData,
+      password: await require('bcryptjs').hash(password, 12),
     },
   });
 };
