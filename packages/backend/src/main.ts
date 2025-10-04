@@ -1,4 +1,4 @@
-import { NestFactory } from '@nestjs/core';
+import { NestFactory, VersioningType } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
@@ -22,7 +22,7 @@ async function bootstrap() {
       },
     },
     crossOriginEmbedderPolicy: false,
-  }));
+  });
 
   // Compression
   app.use(compression());
@@ -31,33 +31,16 @@ async function bootstrap() {
   const isProduction = process.env.NODE_ENV === 'production';
   const frontendUrl = configService.get('FRONTEND_URL', 'http://localhost:3000');
   
-  // In development, allow all origins for easier development
-  // In production, only allow the specified frontend URL
-  const corsOptions = isProduction
-    ? {
-        origin: [
-          frontendUrl,
-          'http://localhost:3000',
-          'https://gouraan.vercel.app',
-        ],
-        credentials: true,
-        methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-        allowedHeaders: [
-          'Content-Type',
-          'Authorization',
-          'Accept',
-          'X-Requested-With',
-        ],
-        exposedHeaders: ['Content-Length', 'Content-Type'],
-      }
-    : {
-        origin: true, // Allow all origins in development
-        credentials: true,
-        methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-        allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
-      };
-
-  app.enableCors(corsOptions);
+  // Enable CORS
+  app.enableCors({
+    origin: isProduction
+      ? [frontendUrl, 'http://localhost:3000', 'https://gouraan.vercel.app']
+      : true,
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'X-Requested-With', 'X-API-Version'],
+    exposedHeaders: ['Content-Length', 'Content-Type'],
+  });
 
   // Global prefix
   app.setGlobalPrefix('api/v1');
@@ -66,16 +49,23 @@ async function bootstrap() {
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
-      forbidNonWhitelisted: true,
       transform: true,
+      forbidNonWhitelisted: true,
       transformOptions: {
         enableImplicitConversion: true,
       },
     }),
   );
 
+  // API versioning
+  app.enableVersioning({
+    type: VersioningType.HEADER,
+    header: 'X-API-Version',
+    defaultVersion: '1',
+  });
+
   // Swagger documentation
-  if (configService.get('NODE_ENV') !== 'production') {
+  if (process.env.NODE_ENV !== 'production') {
     const config = new DocumentBuilder()
       .setTitle('GoUraan API')
       .setDescription('Travel, Hajj & Booking Platform API')
@@ -106,18 +96,22 @@ async function bootstrap() {
         persistAuthorization: true,
       },
     });
-
-    logger.log(`Swagger documentation available at: http://localhost:${configService.get('PORT')}/api/docs`);
   }
 
-  const port = configService.get('PORT') || 3001;
+  // Start the application
+  const port = configService.get<number>('PORT', 3001);
   await app.listen(port);
-
-  logger.log(`🚀 GoUraan API is running on: http://localhost:${port}`);
-  logger.log(`📚 GraphQL Playground: http://localhost:${port}/graphql`);
+  
+  // Log application information
+  logger.log(`🚀 Application is running on: http://localhost:${port}/api`);
+  logger.log(`📚 API Documentation: http://localhost:${port}/api/docs`);
+  
+  if (process.env.NODE_ENV !== 'production') {
+    logger.log(`🔄 Running in ${process.env.NODE_ENV || 'development'} mode`);
+  }
 }
 
 bootstrap().catch((error) => {
-  Logger.error('❌ Error starting server', error);
+  console.error('❌ Error starting server', error);
   process.exit(1);
 });

@@ -1,13 +1,28 @@
-import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import { 
+  BadRequestException, 
+  ConflictException, 
+  Injectable, 
+  Logger, 
+  NotFoundException 
+} from '@nestjs/common';
+import { User, UserRole, UserStatus } from '@prisma/client';
 import { PrismaService } from '@/common/prisma/prisma.service';
-import { UpdateUserDto, UpdateUserPreferencesDto } from './dto';
-import { UserRole, UserStatus } from '@prisma/client';
+import { BaseCrudService } from '@/common/services/base-crud.service';
+import { UsersRepository } from './repositories/users.repository';
+import { UpdateUserDto } from './dto/update-user.dto';
+import { CreateUserDto } from './dto/create-user.dto';
 
 @Injectable()
-export class UsersService {
+export class UsersService extends BaseCrudService<User, CreateUserDto, UpdateUserDto> {
+  protected readonly modelName = 'User';
   private readonly logger = new Logger(UsersService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private readonly usersRepository: UsersRepository,
+    private readonly prisma: PrismaService,
+  ) {
+    super();
+  }
 
   async findById(id: string) {
     const user = await this.prisma.user.findUnique({

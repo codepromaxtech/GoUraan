@@ -1072,94 +1072,116 @@ export class SupportService {
     notificationType: 'status_change' | 'agent_response' | 'ticket_created',
     additionalContext: Record<string, any> = {}
   ): Promise<void> {
-    // First get the ticket with user and assignedToUser relations
-    const ticket = await this.prisma.supportTicket.findUnique({
-      where: { id: ticketId },
-      include: { 
-        user: true, 
-        assignedToUser: true 
-      },
-    });
-
-    if (!ticket) {
-      this.logger.warn(`Ticket ${ticketId} not found for email notification`);
+    if (!this.emailService) {
+      this.logger.warn('Email service not available, skipping email notification');
       return;
-    }
-
-    // Then get the user details
-    const user = await this.prisma.user.findUnique({
-      where: { id: ticket.userId }
-    });
-
-    if (!user) {
-      this.logger.warn(`User ${ticket.userId} not found for ticket ${ticketId}`);
-      return;
-    }
-
-    let templateName: string;
-    let subject: string;
-    const context: Record<string, any> = {
-      ticketId: ticket.id,
-      subject: ticket.title, // Using title instead of subject
-      status: ticket.status,
-      priority: ticket.priority,
-      customerName: user.firstName || 'Customer',
-      currentYear: new Date().getFullYear(),
-      ticketUrl: `${this.configService.get('FRONTEND_URL')}/support/tickets/${ticket.id}`,
-      ...additionalContext,
-    };
-
-    switch (notificationType) {
-      case 'status_change':
-        templateName = 'ticket-status-update';
-        subject = `[Ticket #${ticket.id}] Status updated to ${ticket.status}`;
-        context.previousStatus = additionalContext.previousStatus || 'UNKNOWN';
-        break;
-      case 'agent_response':
-        templateName = 'support-response';
-        subject = `[Ticket #${ticket.id}] New response from support`;
-        
-        // If there's an assigned user, get their details
-        if (ticket.assignedTo) {
-          const assignedUser = await this.prisma.user.findUnique({
-            where: { id: ticket.assignedTo }
-          });
-          
-          context.agentName = assignedUser 
-            ? `${assignedUser.firstName} ${assignedUser.lastName}`
-            : 'Our Support Team';
-        } else {
-          context.agentName = 'Our Support Team';
-        }
-        break;
-      case 'ticket_created':
-        templateName = 'new-ticket';
-        subject = `[Ticket #${ticket.id}] We've received your request`;
-        break;
-      default:
-        this.logger.warn(`Unknown notification type: ${notificationType}`);
-        return;
     }
 
     try {
+      // Get ticket with user and assigned user details in a single query
+      const ticket = await this.prisma.supportTicket.findUnique({
+        where: { id: ticketId },
+        include: { 
+          user: {
+            select: {
+              id: true,
+              email: true,
+              firstName: true,
+              lastName: true,
+            },
+          },
+          assignedTo: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+            },
+          },
+        },
+      });
+
+      if (!ticket) {
+        this.logger.warn(`Ticket ${ticketId} not found for email notification`);
+        return;
+      }
+
+      const user = ticket.user;
+      if (!user) {
+        this.logger.warn(`User not found for ticket ${ticketId}`);
+        return;
+      }
+
       // Ensure we have the user's email
       if (!user.email) {
         this.logger.warn(`No email found for user ${user.id}`);
         return;
       }
 
-      // Send the email with all required parameters
+      // Get frontend URL with fallback
+      const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
+      
+      // Prepare common context
+      const context: Record<string, any> = {
+        ticketId: ticket.id,
+        subject: ticket.title,
+        status: ticket.status,
+        priority: ticket.priority,
+        customerName: user.firstName || 'Customer',
+        currentYear: new Date().getFullYear(),
+        ticketUrl: `${frontendUrl}/support/tickets/${ticket.id}`,
+        ...additionalContext,
+      };
+
+      let templateName: string;
+      let subject: string;
+
+      // Handle different notification types
+      switch (notificationType) {
+        case 'status_change':
+          templateName = 'ticket-status-update';
+          subject = `[Ticket #${ticket.id}] Status updated to ${ticket.status}`;
+          context.previousStatus = additionalContext.previousStatus || 'UNKNOWN';
+          break;
+
+        case 'agent_response':
+          templateName = 'support-response';
+          subject = `[Ticket #${ticket.id}] New response from support`;
+          
+          // Use the assigned user's name if available
+          if (ticket.assignedTo) {
+            context.agentName = ticket.assignedTo.firstName || 'Our Support Team';
+          } else {
+            context.agentName = 'Our Support Team';
+          }
+          break;
+
+        case 'ticket_created':
+          templateName = 'new-ticket';
+          subject = `[Ticket #${ticket.id}] We've received your request`;
+          break;
+
+        default:
+          this.logger.warn(`Unknown notification type: ${notificationType}`);
+          return;
+      }
+
+      // Send the email
       await this.emailService.sendEmail(
         user.email,
         subject,
         templateName,
         context
       );
+      
+      this.logger.log(`Successfully sent ${notificationType} email for ticket ${ticketId} to ${user.email}`);
+      
     } catch (error: any) {
       this.logger.error(
         `Failed to send ${notificationType} email for ticket ${ticketId}: ${error?.message || 'Unknown error'}`,
         error?.stack
       );
+      throw new InternalServerErrorException('Failed to send email notification');
     }
   }
 }
