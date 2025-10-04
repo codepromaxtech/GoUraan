@@ -1,40 +1,55 @@
 import { SetMetadata } from '@nestjs/common';
-import { PERMISSIONS, Permission } from '../../config/permissions.config';
+import { PERMISSIONS } from '../../modules/users/services/user-permissions.service';
 
 export const REQUIRE_PERMISSIONS_KEY = 'requirePermissions';
+
+export type Permission = keyof typeof PERMISSIONS;
 
 export const RequirePermissions = (...permissions: Permission[]) => 
   SetMetadata(REQUIRE_PERMISSIONS_KEY, permissions);
 
 // Helper decorators for common permission sets
 export const RequireCustomer = () => RequirePermissions(
-  PERMISSIONS.BOOK_FLIGHT,
-  PERMISSIONS.BOOK_HOTEL,
-  PERMISSIONS.MANAGE_BOOKINGS
+  'BOOKING_CREATE',
+  'BOOKING_READ',
+  'BOOKING_CANCEL',
+  'TICKET_CREATE',
+  'TICKET_READ'
 );
 
 export const RequireTravelAgent = () => RequirePermissions(
-  PERMISSIONS.ACCESS_WHOLESALE_RATES,
-  PERMISSIONS.CREATE_PACKAGE_DEALS,
-  PERMISSIONS.MANAGE_AGENT_CUSTOMERS
+  'BOOKING_CREATE',
+  'BOOKING_READ',
+  'BOOKING_VIEW_ALL',
+  'PAYMENT_PROCESS'
 );
 
 export const RequireAdmin = () => RequirePermissions(
-  PERMISSIONS.MANAGE_USERS,
-  PERMISSIONS.MANAGE_SETTINGS
+  'USER_MANAGE_ROLES',
+  'SETTINGS_MANAGE',
+  'SYSTEM_MAINTENANCE'
 );
 
 export const RequireFinanceStaff = () => RequirePermissions(
-  PERMISSIONS.MANAGE_INVOICES,
-  PERMISSIONS.PROCESS_REFUNDS
+  'PAYMENT_READ',
+  'PAYMENT_PROCESS',
+  'PAYMENT_REFUND',
+  'REPORTS_VIEW',
+  'REPORTS_GENERATE'
 );
 
 export const RequireSupportStaff = () => RequirePermissions(
-  PERMISSIONS.MANAGE_TICKETS,
-  PERMISSIONS.LIVE_CHAT_SUPPORT
+  'TICKET_READ',
+  'TICKET_UPDATE',
+  'TICKET_ASSIGN',
+  'TICKET_CLOSE',
+  'TICKET_VIEW_ALL'
 );
 
 export const RequireOperationsStaff = () => RequirePermissions(
-  PERMISSIONS.MANUAL_BOOKING_CONFIRMATION,
-  PERMISSIONS.MANAGE_HAJJ_PACKAGES
+  'BOOKING_VIEW_ALL',
+  'BOOKING_MANAGE_STATUS',
+  'PACKAGE_UPDATE',
+  'FLIGHT_MANAGE_INVENTORY',
+  'HOTEL_MANAGE_ROOMS'
 );

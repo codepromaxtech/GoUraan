@@ -667,7 +667,7 @@ model SupportTicket {
   description String
   status      SupportTicketStatus @default(OPEN)
   priority    Int           @default(1)
-  category    String?
+  category    String
   userId      String
   assignedTo  String?
   createdAt   DateTime      @default(now())
