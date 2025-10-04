@@ -19,16 +19,34 @@ export interface RegisterData {
   phone?: string;
 }
 
+export type UserRole = 'admin' | 'super_admin' | 'travel_agent' | 'finance_staff' | 'operations_staff' | 'support_staff' | 'customer';
+
+export interface User {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  roles: UserRole[];
+  status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'PENDING';
+  emailVerified: boolean;
+  phoneNumber?: string;
+  avatar?: string;
+  lastLogin?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface AuthResponse {
   accessToken: string;
   refreshToken: string;
-  user: {
-    id: string;
-    email: string;
-    firstName: string;
-    lastName: string;
-    role: string;
-  };
+  user: User;
+}
+
+export interface ApiResponse<T> {
+  success: boolean;
+  data: T;
+  message?: string;
+  users?: T[];
 }
 
 class ApiClient {
@@ -142,8 +160,28 @@ class ApiClient {
   }
 
   // Health check
-  async healthCheck(): Promise<any> {
-    return this.request<any>('/health');
+  async healthCheck(): Promise<{ status: string }> {
+    return this.request<{ status: string }>('/health');
+  }
+
+  // User management
+  async getUsers(params?: Record<string, any>): Promise<{ users: User[] }> {
+    const query = params ? `?${new URLSearchParams(params).toString()}` : '';
+    return this.request<{ users: User[] }>(`/users${query}`);
+  }
+
+  async updateUserRole(userId: string, role: UserRole): Promise<User> {
+    return this.request<User>(`/users/${userId}/role`, {
+      method: 'PATCH',
+      body: JSON.stringify({ role })
+    });
+  }
+
+  async updateUserStatus(userId: string, status: User['status']): Promise<User> {
+    return this.request<User>(`/users/${userId}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status })
+    });
   }
 }
 

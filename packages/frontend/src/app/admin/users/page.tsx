@@ -3,17 +3,32 @@
 import { useState, useEffect } from 'react';
 import AdminLayout from '@/components/layout/AdminLayout';
 import { api } from '@/lib/api';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+import { Search, User, UserCog, UserX, UserCheck } from 'lucide-react';
+import { UserRole } from '@/lib/api';
+import { UserRoleDialog } from '@/components/admin/UserRoleDialog';
+import { toast } from 'sonner';
+import { format } from 'date-fns';
+
+type UserStatus = 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'PENDING';
 
 interface User {
   id: string;
   email: string;
   firstName: string;
   lastName: string;
-  role: string;
-  status: string;
+  roles: UserRole[];
+  status: UserStatus;
   emailVerified: boolean;
-  loyaltyPoints: number;
+  phoneNumber?: string;
+  avatar?: string;
+  lastLogin?: string;
   createdAt: string;
+  updatedAt: string;
 }
 
 export default function AdminUsersPage() {
@@ -21,16 +36,9 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
+  const [isRoleDialogOpen, setIsRoleDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [newUser, setNewUser] = useState({
-    email: '',
-    firstName: '',
-    lastName: '',
-    password: '',
-    role: 'CUSTOMER',
-  });
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     fetchUsers();
@@ -39,101 +47,274 @@ export default function AdminUsersPage() {
   const fetchUsers = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('accessToken');
-      if (!token) {
-        console.error('No access token found');
-        setLoading(false);
-        return;
-      }
-
-      const response = await fetch('http://localhost:3001/api/v1/users', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
+      const response = await api.get('/users', {
+        params: {
+          ...(filter !== 'all' && { status: filter.toUpperCase() }),
+          ...(searchTerm && { search: searchTerm }),
         },
       });
-
-      if (response.ok) {
-        const data = await response.json();
-        setUsers(data.users || []);
-      } else {
-        console.error('Failed to fetch users');
-        setUsers([]);
-      }
+      
+      setUsers(response.data.users || []);
     } catch (error) {
       console.error('Error fetching users:', error);
+      toast.error('Failed to fetch users');
       setUsers([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const getRoleBadgeColor = (role: string) => {
-    switch (role.toUpperCase()) {
-      case 'ADMIN': return 'bg-purple-100 text-purple-800';
-      case 'AGENT': return 'bg-blue-100 text-blue-800';
-      case 'CUSTOMER': return 'bg-green-100 text-green-800';
-      default: return 'bg-gray-100 text-gray-800';
+  const updateUserRole = async (userId: string, role: UserRole) => {
+    try {
+      await api.patch(`/users/${userId}/role`, { role });
+      setUsers(users.map(user => 
+        user.id === userId 
+          ? { 
+              ...user, 
+              roles: [role, ...user.roles.filter(r => r !== role)] 
+            } 
+          : user
+      ));
+      return true;
+    } catch (error) {
+      console.error('Error updating user role:', error);
+      toast.error('Failed to update user role');
+      return false;
+    }
+  };
+
+  const updateUserStatus = async (userId: string, status: UserStatus) => {
+    try {
+      setIsUpdatingStatus(prev => ({ ...prev, [userId]: true }));
+      await api.patch(`/users/${userId}/status`, { status });
+      
+      setUsers(users.map(user => 
+        user.id === userId ? { ...user, status } : user
+      ));
+      
+      toast.success(`User ${status.toLowerCase()} successfully`);
+      return true;
+    } catch (error) {
+      console.error('Error updating user status:', error);
+      toast.error(`Failed to ${status.toLowerCase()} user`);
+      return false;
+    } finally {
+      setIsUpdatingStatus(prev => ({ ...prev, [userId]: false }));
+    }
+  };
+
+  const getHighestRole = (roles: UserRole[]): UserRole => {
+    if (!roles.length) return 'customer';
+    return roles.reduce((highest, role) => {
+      const currentLevel = Object.values(USER_ROLES).indexOf(role);
+      const highestLevel = Object.values(USER_ROLES).indexOf(highest as UserRole);
+      return currentLevel > highestLevel ? role : highest;
+    }, roles[0]);
+  };
+
+  const getRoleBadgeColor = (role: UserRole) => {
+    switch (role) {
+      case 'admin':
+      case 'super_admin':
+        return 'bg-purple-100 text-purple-800';
+      case 'travel_agent':
+        return 'bg-blue-100 text-blue-800';
+      case 'finance_staff':
+      case 'operations_staff':
+      case 'support_staff':
+        return 'bg-amber-100 text-amber-800';
+      default:
+        return 'bg-green-100 text-green-800';
     }
   };
 
   const getStatusColor = (status: string) => {
     switch (status.toUpperCase()) {
-      case 'ACTIVE': return 'bg-green-100 text-green-800';
-      case 'INACTIVE': return 'bg-gray-100 text-gray-800';
-      case 'SUSPENDED': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case 'ACTIVE': 
+        return 'bg-green-100 text-green-800';
+      case 'INACTIVE': 
+        return 'bg-gray-100 text-gray-800';
+      case 'SUSPENDED': 
+        return 'bg-red-100 text-red-800';
+      default: 
+        return 'bg-gray-100 text-gray-800';
     }
   };
 
+  const USER_ROLES = {
+    admin: 'admin',
+    super_admin: 'super_admin',
+    travel_agent: 'travel_agent',
+    finance_staff: 'finance_staff',
+    operations_staff: 'operations_staff',
+    support_staff: 'support_staff',
+    customer: 'customer'
+  } as const;
+
+  const ROLE_OPTIONS = [
+    { value: 'admin', label: 'Admin' },
+    { value: 'super_admin', label: 'Super Admin' },
+    { value: 'travel_agent', label: 'Travel Agent' },
+    { value: 'finance_staff', label: 'Finance Staff' },
+    { value: 'operations_staff', label: 'Operations Staff' },
+    { value: 'support_staff', label: 'Support Staff' },
+    { value: 'customer', label: 'Customer' },
+  ] as const;
+
   return (
     <AdminLayout>
-      <div className="p-6">
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">Users Management</h1>
-          <p className="text-gray-600 mt-2">Manage all platform users</p>
-        </div>
-
-        {/* Filters */}
-        <div className="bg-white rounded-lg shadow p-4 mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Search</label>
-              <input
+      <div className="container mx-auto px-4 py-8">
+        <h1 className="text-2xl font-bold mb-6">User Management</h1>
+        
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4">
+            <div className="relative w-full md:w-1/3">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Search className="h-5 w-5 text-gray-400" />
+              </div>
+              <Input
                 type="text"
-                placeholder="Search by name or email..."
+                placeholder="Search users..."
+                className="pl-10 w-full"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                onKeyDown={(e) => e.key === 'Enter' && fetchUsers()}
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Role</label>
-              <select
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="all">All Roles</option>
-                <option value="admin">Admin</option>
-                <option value="agent">Agent</option>
-                <option value="customer">Customer</option>
-              </select>
+            
+            <div className="flex items-center space-x-2">
+              <Select value={filter} onValueChange={setFilter}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Filter by status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Users</SelectItem>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="inactive">Inactive</SelectItem>
+                  <SelectItem value="suspended">Suspended</SelectItem>
+                </SelectContent>
+              </Select>
+              
+              <Button onClick={fetchUsers}>
+                <Search className="h-4 w-4 mr-2" />
+                Search
+              </Button>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
-              <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500">
-                <option value="all">All Status</option>
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-                <option value="suspended">Suspended</option>
-              </select>
+          </div>
+          
+          {loading ? (
+            <div className="flex justify-center items-center h-64">
+              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
             </div>
-            <div className="flex items-end">
-              <button
-                onClick={fetchUsers}
-                className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-              >
+          ) : users.length === 0 ? (
+            <div className="text-center py-12">
+              <User className="mx-auto h-12 w-12 text-gray-400" />
+              <h3 className="mt-2 text-sm font-medium text-gray-900">No users found</h3>
+              <p className="mt-1 text-sm text-gray-500">
+                {searchTerm || filter !== 'all' 
+                  ? 'Try adjusting your search or filter criteria.'
+                  : 'There are no users in the system yet.'}
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>User</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Last Login</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {users.map((user) => (
+                    <TableRow key={user.id}>
+                      <TableCell className="font-medium">
+                        {user.firstName} {user.lastName}
+                      </TableCell>
+                      <TableCell>{user.email}</TableCell>
+                      <TableCell>
+                        <Badge className={getRoleBadgeColor(getHighestRole(user.roles))}>
+                          {getHighestRole(user.roles).split('_').map(word => 
+                            word.charAt(0).toUpperCase() + word.slice(1)
+                          ).join(' ')}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge className={getStatusColor(user.status)}>
+                          {user.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {user.lastLogin ? format(new Date(user.lastLogin), 'PPpp') : 'Never'}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end space-x-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedUser(user);
+                              setIsRoleDialogOpen(true);
+                            }}
+                          >
+                            <UserCog className="h-4 w-4 mr-2" />
+                            Edit Role
+                          </Button>
+                          
+                          {user.status === 'SUSPENDED' || user.status === 'INACTIVE' ? (
+                            <Button
+                              variant="default"
+                              size="sm"
+                              className="bg-green-600 hover:bg-green-700"
+                              onClick={() => updateUserStatus(user.id, 'ACTIVE')}
+                              disabled={isUpdatingStatus[user.id]}
+                            >
+                              <UserCheck className="h-4 w-4 mr-2" />
+                              {isUpdatingStatus[user.id] ? 'Activating...' : 'Activate'}
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => updateUserStatus(user.id, 'SUSPENDED')}
+                              disabled={isUpdatingStatus[user.id]}
+                            >
+                              <UserX className="h-4 w-4 mr-2" />
+                              {isUpdatingStatus[user.id] ? 'Suspending...' : 'Suspend'}
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </div>
+      </div>
+      
+      <UserRoleDialog
+        open={isRoleDialogOpen}
+        onOpenChange={setIsRoleDialogOpen}
+        user={selectedUser ? {
+          id: selectedUser.id,
+          email: selectedUser.email,
+          roles: selectedUser.roles,
+          status: selectedUser.status
+        } : null}
+        onRoleUpdate={updateUserRole}
+      />
+    </AdminLayout>
+  );
+}
+                <svg className="-ml-1 mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                </svg>
                 Apply Filters
               </button>
             </div>

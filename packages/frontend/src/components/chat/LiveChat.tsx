@@ -3,20 +3,18 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import { useAuth } from '@/contexts/AuthContext';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Icons } from '@/components/icons';
-import type { User } from '@/types/auth';
+
+interface User {
+  id: string;
+  name: string | null;
+  email: string | null;
+  avatar?: string | null;
+}
 
 interface Message {
   id: string;
   content: string;
-  sender: {
-    id: string;
-    name?: string | null;
-    email?: string | null;
-    avatar?: string | null;
-  };
+  sender: User;
   timestamp: Date | string;
   read: boolean;
 }
@@ -24,12 +22,12 @@ interface Message {
 export default function LiveChat() {
   const { user, isAuthenticated, isLoading } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
-  const [isMinimized, setIsMinimized] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [isMinimized, setIsMinimized] = useState(false);
   const socketRef = useRef<Socket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -155,10 +153,10 @@ export default function LiveChat() {
       content: messageContent,
       sender: {
         id: user.id,
-        name: user.name || 'You',
-        email: user.email,
+        name: user?.name || 'You',
+        email: user?.email || null,
       },
-      timestamp: new Date(),
+      timestamp: new Date().toISOString(),
       read: false,
     };
 
@@ -244,22 +242,22 @@ export default function LiveChat() {
             {messages.map((message) => (
               <div
                 key={message.id}
-                className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
+                className={`flex ${message.sender.id === user?.id ? 'justify-end' : 'justify-start'}`}
               >
-                <div className={`max-w-[80%] ${message.sender === 'user' ? 'order-2' : 'order-1'}`}>
-                  {message.sender === 'support' && (
-                    <p className="text-xs text-gray-500 mb-1">{message.senderName}</p>
+                <div className={`max-w-[80%] ${message.sender.id === user?.id ? 'order-2' : 'order-1'}`}>
+                  {message.sender.id !== user?.id && (
+                    <p className="text-xs text-gray-500 mb-1">{message.sender.name || 'Support'}</p>
                   )}
                   <div
                     className={`rounded-lg p-3 ${
-                      message.sender === 'user'
+                      message.sender.id === user?.id
                         ? 'bg-blue-600 text-white'
                         : 'bg-white text-gray-800 border border-gray-200'
                     }`}
                   >
-                    <p className="text-sm">{message.text}</p>
-                    <p className={`text-xs mt-1 ${message.sender === 'user' ? 'text-blue-100' : 'text-gray-400'}`}>
-                      {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    <p className="text-sm">{message.content}</p>
+                    <p className={`text-xs mt-1 ${message.sender.id === user?.id ? 'text-blue-100' : 'text-gray-400'}`}>
+                      {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </p>
                   </div>
                 </div>

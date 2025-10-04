@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { Inter, Poppins } from 'next/font/google';
 import { SessionProvider } from 'next-auth/react';
 import dynamic from 'next/dynamic';
+import { ThemeProvider } from 'next-themes';
+import { ThemeToggle } from '@/components/theme/ThemeToggle';
 import '@/styles/globals.css';
 import { QueryProvider } from '@/providers/query-provider';
 import { AuthProvider } from '@/contexts/AuthContext';
@@ -35,22 +37,31 @@ export default function RootLayout({
 }) {
   const [mounted, setMounted] = useState(false);
 
-  // This effect will only run on the client side
   useEffect(() => {
     setMounted(true);
   }, []);
 
   return (
-    <html lang="en" className={`${inter.variable} ${poppins.variable}`}>
+    <html suppressHydrationWarning className={`${inter.variable} ${poppins.variable}`}>
       <body className="min-h-screen bg-background font-sans antialiased">
-        <QueryProvider>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
           <SessionProvider>
-            <AuthProvider>
-              {children}
-              <LiveChat />
-            </AuthProvider>
+            <QueryProvider>
+              <AuthProvider>
+                <div className="fixed bottom-4 right-4 z-50">
+                  <ThemeToggle />
+                </div>
+                {mounted && <LiveChat />}
+                {children}
+              </AuthProvider>
+            </QueryProvider>
           </SessionProvider>
-        </QueryProvider>
+        </ThemeProvider>
       </body>
     </html>
   );
