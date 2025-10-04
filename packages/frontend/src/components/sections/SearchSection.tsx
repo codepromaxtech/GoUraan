@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Button } from '@/components/ui/Button';
+import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
 
 type SearchType = 'flights' | 'hotels' | 'packages' | 'hajj-umrah';
