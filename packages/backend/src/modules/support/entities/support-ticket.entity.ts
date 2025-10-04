@@ -1,33 +1,54 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { SupportTicketStatus, SupportTicketPriority, SupportTicketCategory } from '@prisma/client';
 
 export class SupportTicketEntity {
   @ApiProperty({ description: 'Unique identifier for the support ticket' })
   id: string;
 
+  @ApiProperty({ description: 'Title of the support ticket' })
+  title: string;
+
+  @ApiProperty({ description: 'Detailed description of the issue' })
+  description: string;
+
+  @ApiProperty({ 
+    description: 'Current status of the ticket',
+    enum: ['OPEN', 'IN_PROGRESS', 'WAITING_CUSTOMER_RESPONSE', 'WAITING_SUPPORT_RESPONSE', 'RESOLVED', 'CLOSED', 'REOPENED']
+  })
+  status: string;
+
+  @ApiProperty({ 
+    description: 'Priority level of the ticket (1-5, where 1 is highest)',
+    minimum: 1,
+    maximum: 5
+  })
+  priority: number;
+
+  @ApiProperty({ 
+    description: 'Category of the support ticket',
+    example: 'GENERAL'
+  })
+  category: string;
+
   @ApiProperty({ description: 'ID of the user who created the ticket' })
   userId: string;
 
   @ApiProperty({ 
-    enum: SupportTicketStatus,
-    description: 'Current status of the ticket' 
+    description: 'ID of the user assigned to the ticket',
+    nullable: true
   })
-  status: SupportTicketStatus;
+  assignedTo: string | null;
+
+  @ApiProperty({ description: 'When the ticket was created' })
+  createdAt: Date;
+
+  @ApiProperty({ description: 'When the ticket was last updated' })
+  updatedAt: Date;
 
   @ApiProperty({ 
-    enum: SupportTicketPriority,
-    description: 'Priority level of the ticket' 
+    description: 'When the ticket was closed',
+    nullable: true
   })
-  priority: SupportTicketPriority;
-
-  @ApiProperty({ 
-    enum: SupportTicketCategory,
-    description: 'Category of the support ticket' 
-  })
-  category: SupportTicketCategory;
-
-  @ApiProperty({ description: 'Subject/title of the support ticket' })
-  subject: string;
+  closedAt: Date | null;
 
   @ApiProperty({ description: 'Detailed description of the issue' })
   description: string;

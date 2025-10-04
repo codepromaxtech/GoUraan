@@ -1,7 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { 
   IsString, 
-  IsEnum, 
   IsArray, 
   IsOptional, 
   IsNotEmpty, 
@@ -11,73 +10,60 @@ import {
   Min, 
   Max 
 } from 'class-validator';
-import { 
-  SupportTicketPriority, 
-  SupportTicketCategory 
-} from '@prisma/client';
 
 export class CreateSupportTicketDto {
   @ApiProperty({ 
-    enum: SupportTicketPriority,
-    description: 'Priority level of the ticket',
-    default: 'MEDIUM'
-  })
-  @IsEnum(SupportTicketPriority)
-  @IsOptional()
-  priority?: SupportTicketPriority = 'MEDIUM';
-
-  @ApiProperty({ 
-    enum: SupportTicketCategory,
-    description: 'Category of the support ticket',
-    required: true
-  })
-  @IsEnum(SupportTicketCategory)
-  @IsNotEmpty()
-  category: SupportTicketCategory;
-
-  @ApiProperty({ 
-    description: 'Subject/title of the support ticket',
-    minLength: 5,
-    maxLength: 200,
-    example: 'Issue with my recent booking'
+    description: 'Title of the support ticket',
+    example: 'I need help with my booking'
   })
   @IsString()
   @IsNotEmpty()
   @MinLength(5)
   @MaxLength(200)
-  subject: string;
+  title: string;
 
   @ApiProperty({ 
     description: 'Detailed description of the issue',
-    minLength: 20,
-    example: 'I am having trouble accessing my booking details...'
+    example: 'I am unable to access my booking details.'
   })
   @IsString()
   @IsNotEmpty()
-  @MinLength(20)
+  @MinLength(10)
   description: string;
 
-  @ApiProperty({
-    description: 'Tags for categorizing the ticket',
-    type: [String],
-    required: false,
-    example: ['booking', 'payment']
+  @ApiProperty({ 
+    description: 'Priority level of the ticket (1-5, where 1 is highest)',
+    default: 3,
+    minimum: 1,
+    maximum: 5
   })
-  @IsArray()
-  @IsString({ each: true })
+  @IsInt()
+  @Min(1)
+  @Max(5)
   @IsOptional()
-  tags?: string[] = [];
+  priority?: number = 3;
 
   @ApiProperty({
-    description: 'ID of the booking this ticket is related to',
+    description: 'Category of the support ticket',
+    example: 'BOOKING',
+    required: false,
+    default: 'GENERAL'
+  })
+  @IsString()
+  @IsNotEmpty()
+  @IsOptional()
+  category?: string = 'GENERAL';
+
+  @ApiProperty({ 
+    description: 'ID of the related booking (if applicable)',
     required: false
   })
   @IsString()
   @IsOptional()
   bookingId?: string;
 
-  @ApiProperty({
-    description: 'ID of the payment this ticket is related to',
+  @ApiProperty({ 
+    description: 'ID of the related payment (if applicable)',
     required: false
   })
   @IsString()
@@ -85,12 +71,22 @@ export class CreateSupportTicketDto {
   paymentId?: string;
 
   @ApiProperty({
+    description: 'Tags to categorize the ticket',
+    type: [String],
+    required: false,
+    example: ['billing', 'urgent']
+  })
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  tags?: string[];
+
+  @ApiProperty({
     description: 'Attachments (URLs to uploaded files)',
     type: [String],
     required: false,
     example: ['https://example.com/receipt.pdf']
   })
-  @IsArray()
   @IsString({ each: true })
   @IsOptional()
   attachments?: string[] = [];

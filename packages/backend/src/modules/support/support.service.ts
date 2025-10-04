@@ -9,18 +9,20 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '@/common/prisma/prisma.service';
 import { CreateSupportTicketDto } from './dto/create-support-ticket.dto';
-import { UpdateSupportTicketDto } from './dto/update-support-ticket.dto';
 import { SupportTicketEntity } from './entities/support-ticket.entity';
 import { 
-  SupportTicketStatus, 
-  SupportTicketPriority, 
-  SupportTicketCategory,
   UserRole,
   Prisma,
-  Message,
   User,
-  SupportTicket
+  SupportTicket as PrismaSupportTicket,
+  SupportTicketMessage as PrismaSupportTicketMessage
 } from '@prisma/client';
+import { EmailService } from '@/modules/email/email.service';
+import { ConfigService } from '@nestjs/config';
+import { SupportGateway } from './support.gateway';
+
+type SupportTicketStatus = 'OPEN' | 'IN_PROGRESS' | 'WAITING_CUSTOMER_RESPONSE' | 
+  'WAITING_SUPPORT_RESPONSE' | 'RESOLVED' | 'CLOSED' | 'REOPENED';
 
 interface PaginatedResult<T> {
   data: T[];
@@ -29,11 +31,8 @@ interface PaginatedResult<T> {
   limit: number;
   totalPages: number;
 }
-import { EmailService } from '@/modules/email/email.service';
-import { SupportGateway } from './support.gateway';
-import { ConfigService } from '@nestjs/config';
 
-export interface SupportMessage extends Omit<Message, 'createdAt' | 'updatedAt'> {
+export interface SupportMessage extends Omit<PrismaSupportTicketMessage, 'createdAt' | 'updatedAt'> {
   createdAt: string;
   updatedAt: string;
   sender?: Pick<User, 'id' | 'firstName' | 'lastName' | 'email' | 'avatar'>;
@@ -50,6 +49,129 @@ export class SupportService {
     private readonly supportGateway: SupportGateway,
     private readonly configService: ConfigService
   ) {}
+
+  /**
+   * Validate that a booking exists and belongs to the user
+   */
+  private async validateBookingExists(bookingId: string, userId: string): Promise<void> {
+    const booking = await this.prisma.booking.findUnique({
+      where: { id: bookingId, userId },
+    });
+    
+    if (!booking) {
+      throw new NotFoundException('Booking not found or does not belong to user');
+    }
+  }
+
+  /**
+   * Notify user about ticket updates via email
+   */
+  async notifyUserByEmail(
+    ticketId: string,
+    notificationType: 'status_change' | 'agent_response' | 'ticket_created',
+    additionalContext: Record<string, any> = {}
+  ): Promise<void> {
+    if (!this.emailService) {
+      this.logger.warn('Email service not available, skipping email notification');
+      return;
+    }
+
+    try {
+      const ticket = await this.prisma.supportTicket.findUnique({
+        where: { id: ticketId },
+        include: { 
+          user: {
+            select: {
+              id: true,
+              email: true,
+              firstName: true,
+              lastName: true,
+            }
+          } 
+        },
+      });
+
+      if (!ticket || !ticket.user?.email) {
+        this.logger.warn(`No user email found for ticket ${ticketId}, skipping email`);
+        return;
+      }
+
+      const emailData = {
+        to: ticket.user.email,
+        subject: this.getEmailSubject(template, context),
+        template,
+        context: {
+          ...context,
+          userName: context.userName || ticket.user.firstName || 'there',
+          ticketId: context.ticketId || ticketId,
+          ticketTitle: context.ticketTitle || ticket.title,
+          ticketStatus: context.ticketStatus || this.getStatusLabel(ticket.status as SupportTicketStatus),
+          ticketPriority: context.ticketPriority || this.getPriorityLabel(ticket.priority),
+          ticketCategory: context.ticketCategory || ticket.category,
+          supportEmail: this.configService?.get<string>('SUPPORT_EMAIL') || 'support@example.com',
+          supportPhone: this.configService?.get<string>('SUPPORT_PHONE') || '+1 (555) 123-4567',
+          companyName: this.configService?.get<string>('COMPANY_NAME') || 'Our Company',
+        },
+      };
+
+      await this.emailService.sendEmail(emailData);
+    } catch (error) {
+      this.logger.error(`Failed to send email notification for ticket ${ticketId}: ${error.message}`, error.stack);
+    }
+  }
+
+  /**
+   * Get email subject based on template and context
+   */
+  private getEmailSubject(template: string, context: any): string {
+    const ticketId = context.ticketId || '';
+    const ticketTitle = context.ticketTitle || 'Your support ticket';
+    
+    switch (template) {
+      case 'ticket_created':
+        return `Support Ticket #${ticketId}: ${ticketTitle}`;
+      case 'ticket_updated':
+        return `Update on Ticket #${ticketId}: ${ticketTitle}`;
+      case 'ticket_closed':
+        return `Ticket #${ticketId} has been closed: ${ticketTitle}`;
+      case 'ticket_assigned':
+        return `You have been assigned to Ticket #${ticketId}: ${ticketTitle}`;
+      case 'new_message':
+        return `New message on Ticket #${ticketId}: ${ticketTitle}`;
+      default:
+        return `Update on your support ticket #${ticketId}`;
+    }
+  }
+
+  /**
+   * Get human-readable status label
+   */
+  private getStatusLabel(status: SupportTicketStatus): string {
+    const statusLabels: Record<SupportTicketStatus, string> = {
+      'OPEN': 'Open',
+      'IN_PROGRESS': 'In Progress',
+      'WAITING_CUSTOMER_RESPONSE': 'Waiting for your response',
+      'WAITING_SUPPORT_RESPONSE': 'Waiting for support response',
+      'RESOLVED': 'Resolved',
+      'CLOSED': 'Closed',
+      'REOPENED': 'Reopened',
+    };
+    return statusLabels[status] || status;
+  }
+
+  /**
+   * Get human-readable priority label
+   */
+  private getPriorityLabel(priority: number): string {
+    const priorityLabels: Record<number, string> = {
+      1: 'Critical',
+      2: 'High',
+      3: 'Medium',
+      4: 'Low',
+      5: 'Lowest',
+    };
+    return priorityLabels[priority] || `Priority ${priority}`;
+  }
 
   /**
    * Create a new support ticket
@@ -74,130 +196,12 @@ export class SupportService {
           title: createSupportTicketDto.title,
           description: createSupportTicketDto.description,
           status: 'OPEN',
-          priority: createSupportTicketDto.priority || 1,
-          category: createSupportTicketDto.category,
+          priority: createSupportTicketDto.priority || 3,
+          category: createSupportTicketDto.category || 'GENERAL',
           userId: userId,
-          subject: createSupportTicketDto.title, // Ensure subject is set
-          tags: createSupportTicketDto.tags || [], // Initialize tags if provided
+          assignedTo: null,
+          tags: createSupportTicketDto.tags || [],
         },
-        include: {
-          user: true,
-        },
-      });
-
-      // Map to SupportTicketEntity
-      const ticketEntity: SupportTicketEntity = {
-        id: ticket.id,
-        userId: ticket.userId,
-        status: ticket.status as SupportTicketStatus,
-        priority: ticket.priority as unknown as SupportTicketPriority,
-        category: ticket.category as unknown as SupportTicketCategory,
-        subject: ticket.title, // Map title to subject
-        description: ticket.description,
-        assignedToId: ticket.assignedTo || null,
-        closedAt: ticket.closedAt || null,
-        createdAt: ticket.createdAt,
-        updatedAt: ticket.updatedAt,
-        user: ticket.user,
-      };
-
-      // Send email notification
-      await this.notifyUserByEmail(ticket.id, 'ticket_created', {
-        subject: ticket.title,
-        description: ticket.description,
-      });
-
-      return ticketEntity;
-    } catch (error) {
-      this.logger.error(`Error creating support ticket: ${error.message}`, error.stack);
-      throw new InternalServerErrorException('Failed to create support ticket');
-    }
-  }
-  /**
-   * Get all support tickets with pagination and filtering
-   */
-  async findAllTickets(
-    page = 1,
-    limit = 10,
-    userId?: string,
-    status?: SupportTicketStatus,
-    priority?: SupportTicketPriority,
-    category?: SupportTicketCategory,
-    assignedToId?: string,
-    search?: string,
-  ): Promise<PaginatedResult<SupportTicketEntity>> {
-    const skip = (page - 1) * limit;
-    const take = Math.min(limit, 100); // Limit page size to 100
-
-    const where: any = {};
-    
-    if (userId) where.userId = userId;
-    if (status) where.status = status;
-    if (priority) where.priority = priority;
-    if (category) where.category = category;
-    if (assignedToId) where.assignedToId = assignedToId;
-    
-    if (search) {
-      where.OR = [
-        { subject: { contains: search, mode: 'insensitive' } },
-        { description: { contains: search, mode: 'insensitive' } },
-        { tags: { has: search } },
-      ];
-    }
-
-    try {
-      const [total, items] = await Promise.all([
-        this.prisma.supportTicket.count({ where }),
-        this.prisma.supportTicket.findMany({
-          skip,
-          take,
-          where,
-          orderBy: { 
-            priority: 'desc',
-            createdAt: 'desc' 
-          },
-          include: {
-            user: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-                email: true,
-              },
-            },
-            assignedTo: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-                email: true,
-              },
-            },
-          },
-        }),
-      ]);
-
-      return {
-        data: items.map(ticket => new SupportTicketEntity(ticket)),
-        meta: {
-          total,
-          page,
-          limit: take,
-          totalPages: Math.ceil(total / take),
-        },
-      };
-    } catch (error) {
-      this.handleError(error, 'Failed to retrieve support tickets');
-    }
-  }
-
-  /**
-   * Get a single support ticket by ID
-   */
-  async findTicketById(id: string, userId?: string): Promise<SupportTicketEntity> {
-    try {
-      const ticket = await this.prisma.supportTicket.findUnique({
-        where: { id },
         include: {
           user: {
             select: {
@@ -205,24 +209,53 @@ export class SupportService {
               firstName: true,
               lastName: true,
               email: true,
-            },
-          },
-          assignedTo: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              email: true,
-            },
-          },
-          messages: {
-            orderBy: { createdAt: 'asc' },
-            include: {
-              user: {
-                select: {
-                  id: true,
-                  firstName: true,
-                  lastName: true,
+            }
+          }
+        },
+      });
+
+      // Map to SupportTicketEntity
+      const ticketEntity: SupportTicketEntity = {
+        id: ticket.id,
+        title: ticket.title,
+        description: ticket.description,
+        status: ticket.status as SupportTicketStatus,
+        priority: ticket.priority,
+        category: ticket.category,
+        userId: ticket.userId,
+        assignedTo: ticket.assignedTo,
+        createdAt: ticket.createdAt,
+        updatedAt: ticket.updatedAt,
+        closedAt: ticket.closedAt,
+      };
+
+      // Send email notification if email service is available
+      if (this.emailService) {
+        try {
+          await this.notifyUserByEmail(ticket.id, 'ticket_created', {
+            userName: ticket.user?.firstName || 'there',
+            ticketId: ticket.id,
+            ticketTitle: ticket.title,
+            ticketStatus: ticket.status,
+            ticketPriority: ticket.priority,
+            ticketCategory: ticket.category,
+            ticketDescription: ticket.description,
+            ticketCreatedAt: ticket.createdAt.toISOString(),
+            supportEmail: this.configService?.get<string>('SUPPORT_EMAIL') || 'support@example.com',
+            supportPhone: this.configService?.get<string>('SUPPORT_PHONE') || '+1 (555) 123-4567',
+            companyName: this.configService?.get<string>('COMPANY_NAME') || 'Our Company',
+          });
+        } catch (emailError) {
+          this.logger.error('Failed to send notification email', emailError);
+        }
+      }
+
+      return ticketEntity;
+    } catch (error) {
+      this.logger.error(`Error creating support ticket: ${error.message}`, error.stack);
+      throw new InternalServerErrorException('Failed to create support ticket');
+  }
+  /**
                   email: true,
                 },
               },
@@ -523,13 +556,13 @@ export class SupportService {
    * Validate that a booking exists and belongs to the user
    */
   private async validateBookingExists(bookingId: string, userId: string): Promise<void> {
-    try {
-      const booking = await this.prisma.booking.findUnique({
-        where: { id: bookingId },
-      });
-
-      if (!booking) {
-        throw new NotFoundException(`Booking with ID ${bookingId} not found`);
+    // Implementation of validateBookingExists
+    const booking = await this.prisma.booking.findUnique({
+      where: { id: bookingId, userId },
+    });
+    
+    if (!booking) {
+      throw new NotFoundException('Booking not found or does not belong to user');
       }
 
       if (booking.userId !== userId) {
@@ -839,30 +872,6 @@ export class SupportService {
       this.prisma.message.count({
         where: { 
           ticketId,
-          isInternalNote: false,
-        },
-      }),
-    ]);
-
-    return {
-      messages: messages.map(msg => ({
-        ...msg,
-        createdAt: msg.createdAt.toISOString(),
-        updatedAt: msg.updatedAt.toISOString(),
-      })),
-      total,
-    };
-  }
-
-  /**
-   * Auto-assign a ticket to an available agent
-   */
-  private async autoAssignTicket(ticketId: string): Promise<void> {
-    try {
-      // Find available agents with AGENT role
-      const availableAgents = await this.prisma.user.findMany({
-        where: {
-          role: 'AGENT',
           status: 'ACTIVE',
           assignedTickets: {
             none: {
@@ -931,9 +940,9 @@ export class SupportService {
         subject: subject || 'Support Request from Email',
         description: content,
         userId: user.id,
-        status: 'OPEN',
-        priority: 'NORMAL',
-        category: 'GENERAL',
+        status: SupportTicketStatus.OPEN,
+        priority: SupportTicketPriority.NORMAL,
+        category: SupportTicketCategory.GENERAL,
         source: 'EMAIL',
         metadata: metadata,
         attachments: { set: attachments },
@@ -951,6 +960,42 @@ export class SupportService {
     });
 
     return ticket;
+  }
+
+  /**
+   * Automatically assign a ticket to an available support agent
+   */
+  private async autoAssignTicket(ticketId: string): Promise<void> {
+    try {
+      // Find an available support agent (AGENT role in this case)
+      const availableAgent = await this.prisma.user.findFirst({
+        where: {
+          role: 'AGENT',
+          status: 'ACTIVE',
+        },
+        orderBy: {
+          assignedTickets: {
+            _count: 'asc',
+          },
+        },
+      });
+
+      if (availableAgent) {
+        await this.prisma.supportTicket.update({
+          where: { id: ticketId },
+          data: {
+            assignedTo: {
+              connect: { id: availableAgent.id },
+            },
+          },
+        });
+
+        this.logger.log(`Assigned ticket ${ticketId} to agent ${availableAgent.email}`);
+      }
+    } catch (error) {
+      this.logger.error(`Failed to auto-assign ticket ${ticketId}:`, error);
+      // Don't throw error to prevent ticket creation from failing
+    }
   }
 
   /**
@@ -994,11 +1039,11 @@ export class SupportService {
     }
 
     // Send the email
-    await this.emailService.sendEmail({
-      to: ticket.user.email,
-      subject: options.subject,
-      template: 'support-response',
-      context: {
+    await this.emailService.sendEmail(
+      ticket.user.email,
+      options.subject,
+      'support-response',
+      {
         ticketId: ticket.id,
         subject: ticket.subject,
         status: ticket.status,
@@ -1006,8 +1051,7 @@ export class SupportService {
         message: options.message,
         currentYear: new Date().getFullYear(),
         ticketUrl: `${this.configService.get('FRONTEND_URL')}/support/tickets/${ticket.id}`,
-      },
-      attachments: options.attachments,
+      }
     });
 
     // Add the message to the ticket
@@ -1111,10 +1155,10 @@ export class SupportService {
         templateName,
         context
       );
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(
-        `Failed to send ${notificationType} email for ticket ${ticketId}: ${error.message}`,
-        error.stack
+        `Failed to send ${notificationType} email for ticket ${ticketId}: ${error?.message || 'Unknown error'}`,
+        error?.stack
       );
     }
   }
