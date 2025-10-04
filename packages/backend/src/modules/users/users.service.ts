@@ -11,10 +11,12 @@ import { BaseCrudService } from '@/common/services/base-crud.service';
 import { UsersRepository } from './repositories/users.repository';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateUserPreferencesDto } from './dto/update-preferences.dto';
 
 @Injectable()
 export class UsersService extends BaseCrudService<User, CreateUserDto, UpdateUserDto> {
   protected readonly modelName = 'User';
+  protected readonly repository: UsersRepository;
   private readonly logger = new Logger(UsersService.name);
 
   constructor(
@@ -22,6 +24,7 @@ export class UsersService extends BaseCrudService<User, CreateUserDto, UpdateUse
     private readonly prisma: PrismaService,
   ) {
     super();
+    this.repository = usersRepository;
   }
 
   async findById(id: string) {

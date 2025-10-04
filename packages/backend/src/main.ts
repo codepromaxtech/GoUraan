@@ -12,17 +12,20 @@ async function bootstrap() {
   const logger = new Logger('Bootstrap');
 
   // Security
-  app.use(helmet({
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: ["'self'"],
-        styleSrc: ["'self'", "'unsafe-inline'"],
-        scriptSrc: ["'self'"],
-        imgSrc: ["'self'", "data:", "https:"],
-      },
-    },
-    crossOriginEmbedderPolicy: false,
-  });
+  app.use(helmet());
+  
+  // Configure CSP separately to avoid conflicts
+  app.use(helmet.contentSecurityPolicy({
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "https:"],
+    }
+  }));
+  
+  // Disable crossOriginEmbedderPolicy as it can cause issues with some resources
+  app.use(helmet.crossOriginEmbedderPolicy({ policy: "credentialless" }));
 
   // Compression
   app.use(compression());
