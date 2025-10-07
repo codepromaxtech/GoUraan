@@ -1,0 +1,1374 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://prisma.io/docs/concepts/components/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["fullTextSearch"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
+}
+
+// ======================================
+// Enums
+// ======================================
+
+enum UserRole {
+  CUSTOMER
+  AGENT
+  ADMIN
+  MANAGER
+  HOTEL_OWNER
+  SUPPORT_AGENT
+  STAFF_FINANCE
+  STAFF_SUPPORT
+  STAFF_OPERATIONS
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  PENDING_VERIFICATION
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+  REFUNDED
+  FAILED
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+enum PaymentMethod {
+  CREDIT_CARD
+  DEBIT_CARD
+  BANK_TRANSFER
+  PAYPAL
+  STRIPE
+  SSLCOMMERZ
+  OTHER
+}
+
+enum DocumentType {
+  PASSPORT
+  NATIONAL_ID
+  DRIVING_LICENSE
+  VISA
+  OTHER
+}
+
+// ======================================
+// Models
+// ======================================
+
+model User {
+  id                String      @id @default(cuid())
+  email             String      @unique
+  password          String
+  firstName         String?
+  lastName          String?
+  phoneNumber       String?
+  avatar            String?
+  role              UserRole    @default(CUSTOMER)
+  status            UserStatus  @default(PENDING_VERIFICATION)
+  emailVerified     Boolean     @default(false)
+  phoneVerified     Boolean     @default(false)
+  lastLoginAt       DateTime?
+  lastLoginIp       String?
+  verificationToken String?
+  resetToken        String?
+  resetTokenExpiry  DateTime?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  deletedAt         DateTime?
+
+  // Relations
+  bookings         Booking[]
+  payments         Payment[]
+  documents        Document[]
+  reviews          Review[]
+  supportTickets   SupportTicket[]
+  supportMessages  SupportMessage[]
+  supportActivities SupportActivity[]
+  auditLogs        AuditLog[]
+  activities       BookingActivity[]
+  preferences      UserPreference[]
+
+  @@map("users")
+}
+
+model Airline {
+  id          String   @id @default(cuid())
+  code        String   @unique // IATA code
+  name        String
+  logo        String?
+  website     String?
+  phone       String?
+  email       String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  flights     FlightBooking[] @relation("AirlineFlights")
+
+  @@map("airlines")
+}
+
+model Airport {
+  id          String   @id @default(cuid())
+  code        String   @unique // IATA code
+  name        String
+  city        String
+  country     String
+  timezone    String?
+  latitude    Float?
+  longitude   Float?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  departures  FlightSegment[] @relation("DepartureAirport")
+  arrivals    FlightSegment[] @relation("ArrivalAirport")
+  hotels      Hotel[]
+
+  @@map("airports")
+}
+
+model Hotel {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  address     String
+  city        String
+  country     String
+  starRating  Int      @default(3)
+  phone       String?
+  email       String?
+  website     String?
+  checkIn     String?  @default("14:00")
+  checkOut    String?  @default("12:00")
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  airportId   String?
+  airport     Airport? @relation(fields: [airportId], references: [id])
+  rooms       Room[]
+  bookings    HotelBooking[]
+  amenities   HotelAmenity[]
+  
+  @@map("hotels")
+}
+
+model Room {
+  id          String   @id @default(cuid())
+  hotelId     String
+  name        String
+  description String?
+  maxOccupancy Int     @default(2)
+  pricePerNight Float
+  roomCount   Int      @default(1)
+  isAvailable Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  hotel       Hotel    @relation(fields: [hotelId], references: [id])
+  bookings    HotelRoomBooking[]
+  
+  @@map("rooms")
+}
+
+model HotelAmenity {
+  id          String   @id @default(cuid())
+  hotelId     String
+  name        String
+  description String?
+  icon        String?
+  isFree      Boolean  @default(true)
+  
+  // Relations
+  hotel       Hotel    @relation(fields: [hotelId], references: [id])
+  
+  @@map("hotel_amenities")
+}
+
+model Booking {
+  id              String         @id @default(cuid())
+  bookingNumber   String         @unique
+  userId          String
+  status          BookingStatus  @default(PENDING)
+  totalAmount     Float
+  currency        String         @default("USD")
+  notes           String?
+  isPaid          Boolean        @default(false)
+  paymentDue      DateTime?
+  cancelledAt     DateTime?
+  cancelledBy     String?
+  cancellationReason String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  
+  // Relations
+  user            User             @relation(fields: [userId], references: [id])
+  flightBookings  FlightBooking[]
+  hotelBookings   HotelBooking[]
+  payments        Payment[]
+  documents       Document[]
+  activities      BookingActivity[]
+  
+  @@map("bookings")
+}
+
+model FlightBooking {
+  id              String         @id @default(cuid())
+  bookingId       String
+  airlineId       String
+  flightNumber    String
+  departureDate   DateTime
+  arrivalDate     DateTime
+  origin          String
+  destination     String
+  passengerCount  Int            @default(1)
+  isRoundTrip     Boolean        @default(false)
+  returnDate      DateTime?
+  status          BookingStatus  @default(CONFIRMED)
+  notes           String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  
+  // Relations
+  booking         Booking        @relation(fields: [bookingId], references: [id])
+  airline         Airline        @relation("AirlineFlights", fields: [airlineId], references: [id])
+  segments        FlightSegment[]
+  passengers      Passenger[]
+  seats           Seat[]
+  documents       Document[]
+  activities      BookingActivity[]
+  
+  @@map("flight_bookings")
+}
+
+model FlightSegment {
+  id              String         @id @default(cuid())
+  flightBookingId String
+  flightNumber    String
+  airlineCode     String
+  departureTime   DateTime
+  arrivalTime     DateTime
+  origin          String
+  destination     String
+  aircraftType    String?
+  duration        Int            // in minutes
+  stopCount       Int            @default(0)
+  
+  // Relations
+  flightBooking   FlightBooking  @relation(fields: [flightBookingId], references: [id])
+  departureAirport Airport       @relation("DepartureAirport", fields: [origin], references: [code])
+  arrivalAirport   Airport       @relation("ArrivalAirport", fields: [destination], references: [code])
+  
+  @@map("flight_segments")
+}
+
+model Passenger {
+  id              String         @id @default(cuid())
+  bookingId       String
+  firstName       String
+  lastName        String
+  dateOfBirth     DateTime
+  nationality     String
+  passportNumber  String?
+  passportExpiry  DateTime?
+  email           String?
+  phone           String?
+  specialRequests String?
+  
+  // Relations
+  booking         Booking       @relation(fields: [bookingId], references: [id])
+  documents       Document[]
+  seats           Seat[]
+  
+  @@map("passengers")
+}
+
+model Seat {
+  id              String         @id @default(cuid())
+  flightBookingId String
+  passengerId     String?
+  seatNumber      String
+  seatClass       String
+  price           Float
+  isAvailable     Boolean        @default(true)
+  
+  // Relations
+  flightBooking   FlightBooking @relation(fields: [flightBookingId], references: [id])
+  passenger       Passenger?     @relation(fields: [passengerId], references: [id])
+  
+  @@map("seats")
+}
+
+model HotelBooking {
+  id              String         @id @default(cuid())
+  bookingId       String
+  hotelId         String
+  checkIn         DateTime
+  checkOut        DateTime
+  adultCount      Int            @default(2)
+  childCount      Int            @default(0)
+  status          BookingStatus  @default(CONFIRMED)
+  specialRequests String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  
+  // Relations
+  booking         Booking         @relation(fields: [bookingId], references: [id])
+  hotel           Hotel           @relation(fields: [hotelId], references: [id])
+  roomsBooked     HotelRoomBooking[]
+  documents       Document[]
+  activities      BookingActivity[]
+  
+  @@map("hotel_bookings")
+}
+
+model HotelRoomBooking {
+  id              String       @id @default(cuid())
+  hotelBookingId  String
+  roomId          String
+  roomCount       Int          @default(1)
+  pricePerNight   Float
+  totalPrice      Float
+  
+  // Relations
+  hotelBooking    HotelBooking @relation(fields: [hotelBookingId], references: [id])
+  room            Room         @relation(fields: [roomId], references: [id])
+  
+  @@map("hotel_room_bookings")
+}
+
+model Payment {
+  id              String        @id @default(cuid())
+  bookingId       String
+  amount          Float
+  currency        String        @default("USD")
+  paymentMethod   PaymentMethod
+  status          PaymentStatus @default(PENDING)
+  transactionId   String?
+  paymentDate     DateTime?
+  paymentDetails  Json?         // Store payment gateway response
+  refundedAmount  Float         @default(0)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  
+  // Relations
+  booking         Booking      @relation(fields: [bookingId], references: [id])
+  refunds         Refund[]
+  documents       Document[]
+  
+  @@map("payments")
+}
+
+model Refund {
+  id              String   @id @default(cuid())
+  paymentId       String
+  amount          Float
+  reason          String?
+  status          PaymentStatus @default(PENDING)
+  processedAt     DateTime?
+  processedBy     String?
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relations
+  payment         Payment  @relation(fields: [paymentId], references: [id])
+  documents       Document[]
+  
+  @@map("refunds")
+}
+
+model Document {
+  id              String        @id @default(cuid())
+  documentType    DocumentType
+  documentNumber  String
+  fileUrl         String
+  fileType        String
+  fileSize        Int
+  uploadDate      DateTime      @default(now())
+  expiryDate      DateTime?
+  isVerified      Boolean       @default(false)
+  verifiedBy      String?
+  verifiedAt      DateTime?
+  
+  // Relations
+  booking         Booking?     @relation(fields: [bookingId], references: [id])
+  bookingId       String?
+  passenger       Passenger?   @relation(fields: [passengerId], references: [id])
+  passengerId     String?
+  payment         Payment?     @relation(fields: [paymentId], references: [id])
+  paymentId       String?
+  refund          Refund?      @relation(fields: [refundId], references: [id])
+  refundId        String?
+  
+  @@map("documents")
+}
+
+model Review {
+  id              String   @id @default(cuid())
+  userId          String
+  bookingId       String
+  rating          Int      @min(1) @max(5)
+  comment         String?
+  isAnonymous     Boolean  @default(false)
+  isApproved      Boolean  @default(false)
+  approvedBy      String?
+  approvedAt      DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relations
+  user            User     @relation(fields: [userId], references: [id])
+  booking         Booking  @relation(fields: [bookingId], references: [id])
+  
+  @@map("reviews")
+}
+
+model SupportTicket {
+  id              String             @id @default(cuid())
+  userId          String
+  subject         String
+  description     String
+  status          String            @default("OPEN")
+  priority        String            @default("MEDIUM")
+  assignedTo      String?
+  assignedAt      DateTime?
+  resolvedAt      DateTime?
+  resolvedBy      String?
+  resolutionNotes String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  
+  // Relations
+  user            User              @relation(fields: [userId], references: [id])
+  messages        SupportMessage[]
+  activities      SupportActivity[]
+  
+  @@map("support_tickets")
+}
+
+model SupportMessage {
+  id              String         @id @default(cuid())
+  ticketId        String
+  userId          String
+  message         String
+  isInternalNote  Boolean        @default(false)
+  createdAt       DateTime       @default(now())
+  
+  // Relations
+  ticket          SupportTicket  @relation(fields: [ticketId], references: [id])
+  user            User           @relation(fields: [userId], references: [id])
+  attachments     SupportAttachment[]
+  
+  @@map("support_messages")
+}
+
+model SupportAttachment {
+  id                String          @id @default(cuid())
+  messageId         String
+  fileName          String
+  fileUrl           String
+  fileType          String
+  fileSize          Int
+  
+  // Relations
+  message           SupportMessage @relation(fields: [messageId], references: [id])
+  
+  @@map("support_attachments")
+}
+
+model SupportActivity {
+  id              String         @id @default(cuid())
+  ticketId        String
+  userId          String
+  activityType    String
+  description     String
+  oldValue        Json?
+  newValue        Json?
+  ipAddress       String?
+  userAgent       String?
+  createdAt       DateTime       @default(now())
+  
+  // Relations
+  ticket          SupportTicket  @relation(fields: [ticketId], references: [id])
+  user            User           @relation(fields: [userId], references: [id])
+  
+  @@map("support_activities")
+}
+
+model BookingActivity {
+  id              String   @id @default(cuid())
+  bookingId       String
+  userId          String
+  activityType    String
+  description     String
+  oldValue        Json?
+  newValue        Json?
+  ipAddress       String?
+  userAgent       String?
+  createdAt       DateTime @default(now())
+  
+  // Relations
+  booking         Booking  @relation(fields: [bookingId], references: [id])
+  user            User     @relation(fields: [userId], references: [id])
+  
+  @@map("booking_activities")
+}
+
+model AuditLog {
+  id              String   @id @default(cuid())
+  userId          String?
+  action          String
+  entityType      String
+  entityId        String
+  oldValue        Json?
+  newValue        Json?
+  ipAddress       String?
+  userAgent       String?
+  createdAt       DateTime @default(now())
+  
+  // Relations
+  user            User?    @relation(fields: [userId], references: [id])
+  
+  @@map("audit_logs")
+}
+
+model UserPreference {
+  id                String    @id @default(cuid())
+  userId            String
+  notificationEmail Boolean   @default(true)
+  notificationSms   Boolean   @default(true)
+  language          String    @default("en")
+  timezone          String?
+  currency          String    @default("USD")
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  // Relations
+  user              User      @relation(fields: [userId], references: [id])
+  
+  @@unique([userId])
+  @@map("user_preferences")
+}
+
+enum UserRole {
+  CUSTOMER
+  AGENT
+  ADMIN
+  MANAGER
+  HOTEL_OWNER
+  SUPPORT_AGENT
+  STAFF_FINANCE
+  STAFF_SUPPORT
+  STAFF_OPERATIONS
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  PENDING_VERIFICATION
+}
+
+enum Language {
+  EN
+  BN
+  AR
+  FR
+  ES
+  DE
+}
+
+enum Currency {
+  USD
+  BDT
+  EUR
+  GBP
+  SAR
+  AED
+  QAR
+  KWD
+}
+
+enum SeatPreference {
+  WINDOW
+  AISLE
+  MIDDLE
+  EXIT
+}
+
+enum BookingType {
+  FLIGHT
+  HOTEL
+  PACKAGE
+  HAJJ
+  UMRAH
+  VISA
+  TRANSFER
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+  REFUNDED
+  EXPIRED
+  FAILED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  PARTIAL
+  FAILED
+  REFUNDED
+  CANCELLED
+  PROCESSING
+  DECLINED
+  EXPIRED
+}
+
+enum PaymentMethod {
+  CREDIT_CARD
+  DEBIT_CARD
+  BANK_TRANSFER
+  MOBILE_BANKING
+  DIGITAL_WALLET
+  CASH
+  CRYPTO
+  VOUCHER
+}
+
+enum PaymentGateway {
+  STRIPE
+  PAYPAL
+  SSLCOMMERZ
+  BRAINTREE
+  AUTHORIZE_NET
+  PAYSTACK
+  FLUTTERWAVE
+  MOLLIE
+  CASH
+  BANK_TRANSFER
+  OTHER
+}
+
+enum DocumentType {
+  PASSPORT
+  NATIONAL_ID
+  DRIVING_LICENSE
+  VISA
+  TICKET
+  INVOICE
+  RECEIPT
+  OTHER
+}
+
+enum NotificationType {
+  BOOKING_CONFIRMATION
+  PAYMENT_RECEIVED
+  PAYMENT_FAILED
+  BOOKING_UPDATED
+  FLIGHT_REMINDER
+  CHECKIN_REMINDER
+  ACCOUNT_VERIFICATION
+  PASSWORD_RESET
+  SECURITY_ALERT
+  PROMOTION
+  NEWSLETTER
+  SUPPORT_TICKET_UPDATE
+  REVIEW_REQUEST
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+
+enum NotificationChannel {
+  EMAIL
+  SMS
+  PUSH
+  IN_APP
+  WHATSAPP
+}
+
+// ======================================
+// Models
+// ======================================
+
+model User {
+  id               String     @id @default(cuid())
+  email            String     @unique
+  password         String?
+  firstName        String
+  lastName         String
+  phone            String?
+  dateOfBirth      DateTime?
+  gender           String?
+  address          String?
+  city             String?
+  country          String?
+  postalCode       String?
+  preferredLanguage Language   @default(EN)
+  preferredCurrency Currency    @default(USD)
+  profileImage     String?
+  role             UserRole    @default(CUSTOMER)
+  status           UserStatus  @default(PENDING_VERIFICATION)
+  isEmailVerified  Boolean     @default(false)
+  isPhoneVerified  Boolean     @default(false)
+  lastLogin        DateTime?
+  lastActive       DateTime?
+  twoFactorEnabled Boolean     @default(false)
+  twoFactorSecret  String?
+  resetPasswordToken String?
+  resetPasswordExpires DateTime?
+  verificationToken String?
+  verificationExpires DateTime?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+  deletedAt        DateTime?
+
+  // Relations
+  documents        UserDocument[]
+  paymentMethods   PaymentMethod[]
+  bookings         Booking[]
+  reviews          Review[]
+  notifications    Notification[]
+  supportTickets   SupportTicket[]
+  activities       UserActivity[]
+  preferences      UserPreference[]
+  sessions         Session[]
+
+  // Indexes
+  @@index([email, status, role])
+  @@map("users")
+}
+
+model UserDocument {
+  id          String      @id @default(cuid())
+  userId      String
+  type        DocumentType
+  documentUrl String
+  documentId  String?
+  isVerified  Boolean     @default(false)
+  verifiedBy  String?
+  verifiedAt  DateTime?
+  notes       String?
+  metadata    Json?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  expiresAt   DateTime?
+
+  // Relations
+  user        User        @relation(fields: [userId], references: [id])
+
+  @@map("user_documents")
+}
+
+model UserPreference {
+  id                String    @id @default(cuid())
+  userId            String
+  notificationEmail Boolean   @default(true)
+  notificationSms   Boolean   @default(true)
+  notificationPush  Boolean   @default(true)
+  marketingEmail    Boolean   @default(false)
+  marketingSms      Boolean   @default(false)
+  seatPreference    SeatPreference?
+  mealPreference    String?
+  specialAssistance String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  // Relations
+  user              User      @relation(fields: [userId], references: [id])
+
+  @@unique([userId])
+  @@map("user_preferences")
+}
+
+model UserActivity {
+  id          String    @id @default(cuid())
+  userId      String
+  activity    String
+  ipAddress   String?
+  userAgent   String?
+  metadata    Json?
+  createdAt   DateTime  @default(now())
+
+  // Relations
+  user        User      @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
+  @@map("user_activities")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  userId       String
+  token        String   @unique
+  userAgent    String?
+  ipAddress    String?
+  expiresAt    DateTime
+  lastActiveAt DateTime @updatedAt
+  createdAt    DateTime @default(now())
+
+  // Relations
+  user         User     @relation(fields: [userId], references: [id])
+
+  @@index([userId, token])
+  @@map("sessions")
+}
+
+model Booking {
+  id            String        @id @default(cuid())
+  userId        String
+  type          BookingType
+  status        BookingStatus @default(PENDING)
+  reference     String        @unique
+  totalAmount   Float
+  totalPaid     Float         @default(0)
+  currency      Currency      @default(USD)
+  paymentStatus PaymentStatus @default(PENDING)
+  paymentMethod PaymentMethod?
+  paymentGateway PaymentGateway?
+  paymentId     String?
+  notes         String?
+  metadata      Json?
+  cancellationReason String?
+  cancelledAt   DateTime?
+  cancelledBy   String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  // Relations
+  user          User          @relation(fields: [userId], references: [id])
+  passengers    Passenger[]
+  flightBookings FlightBooking[]
+  hotelBookings HotelBooking[]
+  payments      Payment[]
+  documents     Document[]
+  activities    BookingActivity[]
+  notifications Notification[]
+  supportTickets SupportTicket[]
+
+  @@index([userId, status, paymentStatus, createdAt])
+  @@map("bookings")
+}
+
+model Passenger {
+  id             String    @id @default(cuid())
+  bookingId      String
+  firstName      String
+  lastName       String
+  dateOfBirth    DateTime
+  gender         String
+  passportNumber String?
+  nationality    String
+  seatPreference SeatPreference?
+  specialMeals   String?
+  specialAssistance String?
+  isPrimary      Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  // Relations
+  booking        Booking   @relation(fields: [bookingId], references: [id])
+  documents      Document[]
+  seats          Seat[]
+
+  @@index([bookingId])
+  @@map("passengers")
+}
+
+model FlightBooking {
+  id                String           @id @default(cuid())
+  bookingId         String
+  airlineId         String
+  bookingReference  String           @unique
+  pnr               String?          @unique
+  departureDate     DateTime
+  returnDate        DateTime?
+  tripType          String           // One-way, Round-trip, Multi-city
+  cabinClass        String
+  adults            Int              @default(1)
+  children          Int              @default(0)
+  infants           Int              @default(0)
+  totalPrice        Float
+  currency          Currency         @default(USD)
+  status            BookingStatus    @default(PENDING)
+  isRefundable      Boolean          @default(false)
+  refundAmount      Float?           @default(0)
+  cancellationFee   Float?           @default(0)
+  cancellationPolicy String?
+  notes             String?
+  metadata          Json?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  // Relations
+  booking           Booking          @relation(fields: [bookingId], references: [id])
+  airline           Airline          @relation(fields: [airlineId], references: [id])
+  segments          FlightSegment[]
+  passengers        Passenger[]
+  seats             Seat[]
+  documents         Document[]
+  activities        BookingActivity[]
+
+  @@index([bookingId, airlineId, status, departureDate])
+  @@map("flight_bookings")
+}
+
+model FlightSegment {
+  id              String         @id @default(cuid())
+  flightBookingId String
+  flightNumber    String
+  airlineCode     String
+  departureAirportId String
+  arrivalAirportId   String
+  departureTime   DateTime
+  arrivalTime     DateTime
+  duration        Int            // in minutes
+  aircraftType    String?
+  bookingClass    String
+  cabinClass      String
+  fareBasis       String?
+  fareRules       String?
+  baggageAllowance String?
+  isReturnSegment Boolean        @default(false)
+  segmentNumber   Int
+  status          String         @default("SCHEDULED")
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  // Relations
+  flightBooking   FlightBooking  @relation(fields: [flightBookingId], references: [id])
+  departureAirport Airport       @relation("DepartureAirport", fields: [departureAirportId], references: [id])
+  arrivalAirport   Airport       @relation("ArrivalAirport", fields: [arrivalAirportId], references: [id])
+  seats            Seat[]
+
+  @@index([flightBookingId, departureAirportId, arrivalAirportId, departureTime])
+  @@map("flight_segments")
+}
+
+model Seat {
+  id              String     @id @default(cuid())
+  flightId        String
+  flightSegmentId String
+  seatNumber      String
+  passengerId     String
+  seatClass       String
+  isAvailable     Boolean    @default(true)
+  price           Float
+  currency        Currency   @default(USD)
+  isWindow        Boolean    @default(false)
+  isAisle         Boolean    @default(false)
+  isEmergencyExit Boolean    @default(false)
+  hasExtraLegroom Boolean    @default(false)
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  // Relations
+  flightSegment   FlightSegment @relation(fields: [flightSegmentId], references: [id])
+  passenger       Passenger     @relation(fields: [passengerId], references: [id])
+
+  @@unique([flightSegmentId, seatNumber])
+  @@index([flightSegmentId, passengerId])
+  @@map("seats")
+}
+
+model HotelBooking {
+  id                String           @id @default(cuid())
+  bookingId         String
+  hotelId           String
+  hotelName         String
+  checkInDate       DateTime
+  checkOutDate      DateTime
+  nights            Int
+  adults            Int              @default(1)
+  children          Int              @default(0)
+  rooms             Int              @default(1)
+  totalPrice        Float
+  currency          Currency         @default(USD)
+  status            BookingStatus    @default(PENDING)
+  isRefundable      Boolean          @default(false)
+  cancellationPolicy String?
+  cancellationDeadline DateTime?
+  cancellationFee    Float?          @default(0)
+  specialRequests    String?
+  notes             String?
+  metadata          Json?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  // Relations
+  booking           Booking          @relation(fields: [bookingId], references: [id])
+  roomsBooked       HotelRoomBooking[]
+  documents         Document[]
+  activities        BookingActivity[]
+
+  @@index([bookingId, hotelId, status, checkInDate])
+  @@map("hotel_bookings")
+}
+
+model HotelRoomBooking {
+  id              String   @id @default(cuid())
+  hotelBookingId  String
+  roomId          String
+  roomType        String
+  roomName        String
+  maxOccupancy    Int
+  pricePerNight   Float
+  totalPrice      Float
+  currency        Currency @default(USD)
+  specialRequests String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  hotelBooking    HotelBooking @relation(fields: [hotelBookingId], references: [id])
+  guests          HotelGuest[]
+
+  @@index([hotelBookingId, roomId])
+  @@map("hotel_room_bookings")
+}
+
+model HotelGuest {
+  id                String   @id @default(cuid())
+  roomBookingId     String
+  firstName         String
+  lastName          String
+  dateOfBirth       DateTime
+  isPrimaryGuest    Boolean  @default(false)
+  specialRequests   String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  roomBooking       HotelRoomBooking @relation(fields: [roomBookingId], references: [id])
+
+  @@index([roomBookingId])
+  @@map("hotel_guests")
+}
+
+model Payment {
+  id              String        @id @default(cuid())
+  bookingId       String
+  amount          Float
+  currency        Currency      @default(USD)
+  paymentMethod   PaymentMethod
+  paymentGateway  PaymentGateway
+  transactionId   String?       @unique
+  status          PaymentStatus @default(PENDING)
+  gatewayResponse Json?
+  failureReason   String?
+  refundedAmount  Float?        @default(0)
+  refundedAt      DateTime?
+  refundReason    String?
+  metadata        Json?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  // Relations
+  booking         Booking       @relation(fields: [bookingId], references: [id])
+  refunds         Refund[]
+  documents       Document[]
+
+  @@index([bookingId, transactionId, status, createdAt])
+  @@map("payments")
+}
+
+model Refund {
+  id              String   @id @default(cuid())
+  paymentId       String
+  amount          Float
+  currency        Currency @default(USD)
+  reason          String?
+  status          String   @default("PENDING") // PENDING, PROCESSING, COMPLETED, FAILED
+  processedBy     String?
+  processedAt     DateTime?
+  gatewayResponse Json?
+  notes           String?
+  metadata        Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  payment         Payment  @relation(fields: [paymentId], references: [id])
+  documents       Document[]
+
+  @@index([paymentId, status, createdAt])
+  @@map("refunds")
+}
+
+model Document {
+  id              String        @id @default(cuid())
+  documentableType String       // e.g., 'booking', 'payment', 'user', etc.
+  documentableId   String       // ID of the related model
+  type            DocumentType
+  name            String
+  url             String
+  mimeType        String?
+  size            Int?         // in bytes
+  isVerified      Boolean      @default(false)
+  verifiedBy      String?
+  verifiedAt      DateTime?
+  notes           String?
+  metadata        Json?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  expiresAt       DateTime?
+
+  // Indexes
+  @@index([documentableType, documentableId, type])
+  @@map("documents")
+}
+
+model Notification {
+  id              String             @id @default(cuid())
+  userId          String?
+  bookingId       String?
+  type            NotificationType
+  title           String
+  message         String
+  channel         NotificationChannel
+  status          NotificationStatus @default(PENDING)
+  readAt          DateTime?
+  sentAt          DateTime?
+  deliveredAt     DateTime?
+  metadata        Json?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  // Relations
+  user            User?              @relation(fields: [userId], references: [id])
+  booking         Booking?           @relation(fields: [bookingId], references: [id])
+
+  @@index([userId, status, createdAt])
+  @@map("notifications")
+}
+
+model Review {
+  id              String    @id @default(cuid())
+  userId          String
+  bookingId       String?
+  rating          Int       @default(5)
+  title           String?
+  comment         String
+  isAnonymous     Boolean   @default(false)
+  isApproved      Boolean   @default(false)
+  approvedBy      String?
+  approvedAt      DateTime?
+  metadata        Json?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  user            User      @relation(fields: [userId], references: [id])
+  booking         Booking?  @relation(fields: [bookingId], references: [id])
+
+  @@index([userId, bookingId, isApproved, createdAt])
+  @@map("reviews")
+}
+
+model SupportTicket {
+  id              String           @id @default(cuid())
+  userId          String
+  bookingId       String?
+  subject         String
+  description     String
+  status          String           @default("OPEN") // OPEN, IN_PROGRESS, PENDING_CUSTOMER, RESOLVED, CLOSED
+  priority        String           @default("MEDIUM") // LOW, MEDIUM, HIGH, URGENT
+  assignedTo      String?
+  assignedAt      DateTime?
+  resolvedAt      DateTime?
+  closedAt        DateTime?
+  closedBy        String?
+  resolutionNotes String?
+  metadata        Json?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  // Relations
+  user            User             @relation(fields: [userId], references: [id])
+  booking         Booking?         @relation(fields: [bookingId], references: [id])
+  messages        SupportMessage[]
+  activities      SupportActivity[]
+
+  @@index([userId, bookingId, status, priority, createdAt])
+  @@map("support_tickets")
+}
+
+model SupportMessage {
+  id              String         @id @default(cuid())
+  ticketId        String
+  userId          String
+  message         String
+  isInternalNote  Boolean        @default(false)
+  metadata        Json?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  // Relations
+  ticket          SupportTicket  @relation(fields: [ticketId], references: [id])
+  user            User           @relation(fields: [userId], references: [id])
+  attachments     SupportAttachment[]
+
+  @@index([ticketId, userId, isInternalNote, createdAt])
+  @@map("support_messages")
+}
+
+model SupportAttachment {
+  id              String         @id @default(cuid())
+  messageId       String
+  fileName        String
+  fileUrl         String
+  fileType        String
+  fileSize        Int            // in bytes
+  metadata        Json?
+  createdAt       DateTime       @default(now())
+
+  // Relations
+  message         SupportMessage @relation(fields: [messageId], references: [id])
+
+  @@index([messageId])
+  @@map("support_attachments")
+}
+
+model SupportActivity {
+  id              String         @id @default(cuid())
+  ticketId        String
+  userId          String
+  activityType    String         // STATUS_CHANGED, ASSIGNED, PRIORITY_CHANGED, NOTE_ADDED, etc.
+  oldValue        String?
+  newValue        String?
+  metadata        Json?
+  createdAt       DateTime       @default(now())
+
+  // Relations
+  ticket          SupportTicket  @relation(fields: [ticketId], references: [id])
+  user            User           @relation(fields: [userId], references: [id])
+
+  @@index([ticketId, userId, activityType, createdAt])
+  @@map("support_activities")
+}
+
+model BookingActivity {
+  id              String         @id @default(cuid())
+  bookingId       String
+  userId          String
+  activityType    String         // STATUS_CHANGED, PAYMENT_RECEIVED, DOCUMENT_UPLOADED, etc.
+  description     String
+  oldValue        String?
+  newValue        String?
+  metadata        Json?
+  createdAt       DateTime       @default(now())
+
+  // Relations
+  booking         Booking        @relation(fields: [bookingId], references: [id])
+  user            User           @relation(fields: [userId], references: [id])
+
+  @@index([bookingId, userId, activityType, createdAt])
+  @@map("booking_activities")
+}
+
+model SystemConfig {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  value       String
+  description String?
+  isPublic    Boolean  @default(false)
+  isEncrypted Boolean  @default(false)
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  updatedBy   String?
+
+  @@map("system_configs")
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  userId      String?
+  action      String
+  entityType  String
+  entityId    String
+  oldValue    Json?
+  newValue    Json?
+  ipAddress   String?
+  userAgent   String?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  // Relations
+  user        User?    @relation(fields: [userId], references: [id])
+
+  @@index([userId, entityType, entityId, action, createdAt])
+  @@map("audit_logs")
+}
+
+model CacheItem {
+  key         String   @id
+  value       String
+  expiresAt   DateTime
+  updatedAt   DateTime @updatedAt
+
+  @@map("cache_items")
+}
+
+model QueueJob {
+  id          String   @id @default(cuid())
+  queue       String
+  payload     Json
+  attempts    Int      @default(0)
+  reservedAt  DateTime?
+  availableAt DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([queue, reservedAt])
+  @@map("queue_jobs")
+}
+
+model FailedJob {
+  id          String   @id @default(cuid())
+  connection  String
+  queue       String
+  payload     Json
+  exception   String
+  failedAt    DateTime @default(now())
+
+  @@map("failed_jobs")
+}
+
+// ======================================
+// Indexes and Other Configurations
+// ======================================

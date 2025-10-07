@@ -1,0 +1,327 @@
+<h2 mat-dialog-title>{{ isEdit ? 'Edit' : 'New' }} Flight Booking</h2>
+
+<mat-dialog-content [formGroup]="bookingForm">
+  <mat-tab-group>
+    <!-- Flight Details Tab -->
+    <mat-tab label="Flight Details">
+      <div class="form-section">
+        <div class="form-row">
+          <mat-form-field appearance="outline" class="form-field">
+            <mat-label>Booking ID</mat-label>
+            <input matInput formControlName="bookingId" placeholder="e.g., FST123456">
+            <mat-error *ngIf="bookingForm.get('bookingId').hasError('required')">
+              Booking ID is required
+            </mat-error>
+            <mat-error *ngIf="bookingForm.get('bookingId').hasError('pattern')">
+              Please enter a valid booking ID
+            </mat-error>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="form-field">
+            <mat-label>PNR</mat-label>
+            <input matInput formControlName="pnr" placeholder="e.g., ABC123" maxlength="6">
+            <mat-error *ngIf="bookingForm.get('pnr').hasError('required')">
+              PNR is required
+            </mat-error>
+            <mat-error *ngIf="bookingForm.get('pnr').hasError('pattern')">
+              PNR must be 6 alphanumeric characters
+            </mat-error>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="form-field">
+            <mat-label>Status</mat-label>
+            <mat-select formControlName="status">
+              <mat-option value="PENDING">Pending</mat-option>
+              <mat-option value="CONFIRMED">Confirmed</mat-option>
+              <mat-option value="CANCELLED">Cancelled</mat-option>
+              <mat-option value="COMPLETED">Completed</mat-option>
+            </mat-select>
+          </mat-form-field>
+        </div>
+
+        <div class="form-row">
+          <mat-form-field appearance="outline" class="form-field">
+            <mat-label>Booking Date</mat-label>
+            <input matInput [matDatepicker]="bookingDatePicker" formControlName="bookingDate">
+            <mat-datepicker-toggle matSuffix [for]="bookingDatePicker"></mat-datepicker-toggle>
+            <mat-datepicker #bookingDatePicker></mat-datepicker>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="form-field">
+            <mat-label>Issue Date</mat-label>
+            <input matInput [matDatepicker]="issueDatePicker" formControlName="issueDate">
+            <mat-datepicker-toggle matSuffix [for]="issueDatePicker"></mat-datepicker-toggle>
+            <mat-datepicker #issueDatePicker></mat-datepicker>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="form-field">
+            <mat-label>Issued By</mat-label>
+            <input matInput formControlName="issuedBy" placeholder="Agent name">
+          </mat-form-field>
+        </div>
+
+        <div class="section-header">
+          <h3>Flight Segments</h3>
+          <button mat-button color="primary" (click)="addFlightSegment()" type="button">
+            <mat-icon>add</mat-icon> Add Segment
+          </button>
+        </div>
+
+        <div formArrayName="flightSegments" class="segments-container">
+          <div *ngFor="let segment of flightSegments.controls; let i = index" [formGroupName]="i" class="segment-card">
+            <div class="segment-header">
+              <h4>Segment {{ i + 1 }}</h4>
+              <button mat-icon-button color="warn" (click)="removeFlightSegment(i)" type="button" *ngIf="flightSegments.length > 1">
+                <mat-icon>delete</mat-icon>
+              </button>
+            </div>
+            
+            <div class="form-row">
+              <mat-form-field appearance="outline" class="form-field">
+                <mat-label>Airline</mat-label>
+                <input matInput formControlName="airline" placeholder="e.g., Emirates">
+              </mat-form-field>
+              
+              <mat-form-field appearance="outline" class="form-field">
+                <mat-label>Flight Number</mat-label>
+                <input matInput formControlName="flightNumber" placeholder="e.g., EK585">
+              </mat-form-field>
+              
+              <mat-form-field appearance="outline" class="form-field">
+                <mat-label>Cabin Class</mat-label>
+                <mat-select formControlName="cabinClass">
+                  <mat-option value="ECONOMY">Economy</mat-option>
+                  <mat-option value="PREMIUM_ECONOMY">Premium Economy</mat-option>
+                  <mat-option value="BUSINESS">Business</mat-option>
+                  <mat-option value="FIRST">First Class</mat-option>
+                </mat-select>
+              </mat-form-field>
+            </div>
+            
+            <div class="form-row">
+              <mat-form-field appearance="outline" class="form-field">
+                <mat-label>Departure Airport</mat-label>
+                <input matInput formControlName="departureAirport" placeholder="e.g., DAC" maxlength="3">
+              </mat-form-field>
+              
+              <mat-form-field appearance="outline" class="form-field">
+                <mat-label>Arrival Airport</mat-label>
+                <input matInput formControlName="arrivalAirport" placeholder="e.g., DXB" maxlength="3">
+              </mat-form-field>
+              
+              <mat-form-field appearance="outline" class="form-field">
+                <mat-label>Baggage Allowance</mat-label>
+                <input matInput formControlName="baggageAllowance" placeholder="e.g., 20KG">
+              </mat-form-field>
+            </div>
+            
+            <div class="form-row">
+              <mat-form-field appearance="outline" class="form-field">
+                <mat-label>Departure Date</mat-label>
+                <input matInput [matDatepicker]="departureDatePicker{{i}}" formControlName="departureDate">
+                <mat-datepicker-toggle matSuffix [for]="departureDatePicker{{i}}"></mat-datepicker-toggle>
+                <mat-datepicker #departureDatePicker{{i}}></mat-datepicker>
+              </mat-form-field>
+              
+              <mat-form-field appearance="outline" class="form-field">
+                <mat-label>Departure Time</mat-label>
+                <input matInput type="time" formControlName="departureTime">
+              </mat-form-field>
+            </div>
+            
+            <div class="form-row">
+              <mat-form-field appearance="outline" class="form-field">
+                <mat-label>Arrival Date</mat-label>
+                <input matInput [matDatepicker]="arrivalDatePicker{{i}}" formControlName="arrivalDate">
+                <mat-datepicker-toggle matSuffix [for]="arrivalDatePicker{{i}}"></mat-datepicker-toggle>
+                <mat-datepicker #arrivalDatePicker{{i}}></mat-datepicker>
+              </mat-form-field>
+              
+              <mat-form-field appearance="outline" class="form-field">
+                <mat-label>Arrival Time</mat-label>
+                <input matInput type="time" formControlName="arrivalTime">
+              </mat-form-field>
+            </div>
+          </div>
+        </div>
+      </div>
+    </mat-tab>
+
+    <!-- Passengers Tab -->
+    <mat-tab label="Passengers">
+      <div class="form-section">
+        <div class="section-header">
+          <h3>Passenger Details</h3>
+          <button mat-button color="primary" (click)="addPassenger()" type="button">
+            <mat-icon>person_add</mat-icon> Add Passenger
+          </button>
+        </div>
+
+        <div formArrayName="passengers" class="passengers-container">
+          <div *ngFor="let passenger of passengers.controls; let i = index" [formGroupName]="i" class="passenger-card">
+            <div class="passenger-header">
+              <h4>Passenger {{ i + 1 }}</h4>
+              <button mat-icon-button color="warn" (click)="removePassenger(i)" type="button" *ngIf="passengers.length > 1">
+                <mat-icon>delete</mat-icon>
+              </button>
+            </div>
+            
+            <div class="form-row">
+              <mat-form-field appearance="outline" class="form-field">
+                <mat-label>Title</mat-label>
+                <mat-select formControlName="title">
+                  <mat-option value="MR">Mr.</mat-option>
+                  <mat-option value="MRS">Mrs.</mat-option>
+                  <mat-option value="MISS">Miss</mat-option>
+                  <mat-option value="MS">Ms.</mat-option>
+                  <mat-option value="MASTER">Master</mat-option>
+                </mat-select>
+              </mat-form-field>
+              
+              <mat-form-field appearance="outline" class="form-field">
+                <mat-label>First Name</mat-label>
+                <input matInput formControlName="firstName" placeholder="First name">
+              </mat-form-field>
+              
+              <mat-form-field appearance="outline" class="form-field">
+                <mat-label>Last Name</mat-label>
+                <input matInput formControlName="lastName" placeholder="Last name">
+              </mat-form-field>
+            </div>
+            
+            <div class="form-row">
+              <mat-form-field appearance="outline" class="form-field">
+                <mat-label>Date of Birth</mat-label>
+                <input matInput [matDatepicker]="dobPicker{{i}}" formControlName="dateOfBirth">
+                <mat-datepicker-toggle matSuffix [for]="dobPicker{{i}}"></mat-datepicker-toggle>
+                <mat-datepicker #dobPicker{{i}}></mat-datepicker>
+              </mat-form-field>
+              
+              <mat-form-field appearance="outline" class="form-field">
+                <mat-label>Gender</mat-label>
+                <mat-select formControlName="gender">
+                  <mat-option value="MALE">Male</mat-option>
+                  <mat-option value="FEMALE">Female</mat-option>
+                  <mat-option value="OTHER">Other</mat-option>
+                </mat-select>
+              </mat-form-field>
+              
+              <mat-form-field appearance="outline" class="form-field">
+                <mat-label>Passport Number</mat-label>
+                <input matInput formControlName="passportNumber" placeholder="e.g., A12345678">
+              </mat-form-field>
+            </div>
+            
+            <div class="form-row">
+              <mat-form-field appearance="outline" class="form-field">
+                <mat-label>Nationality</mat-label>
+                <input matInput formControlName="nationality" placeholder="e.g., Bangladeshi">
+              </mat-form-field>
+            </div>
+          </div>
+        </div>
+      </div>
+    </mat-tab>
+
+    <!-- Pricing Tab -->
+    <mat-tab label="Pricing">
+      <div class="form-section">
+        <div class="pricing-summary">
+          <div class="pricing-row">
+            <span class="label">Base Fare:</span>
+            <span class="value">
+              <mat-form-field appearance="outline" class="currency-field">
+                <input matInput type="number" formControlName="baseFare" min="0" step="0.01">
+              </mat-form-field>
+              <span class="currency">BDT</span>
+            </span>
+          </div>
+          
+          <div class="pricing-row">
+            <span class="label">Tax & Fees:</span>
+            <span class="value">
+              <mat-form-field appearance="outline" class="currency-field">
+                <input matInput type="number" formControlName="tax" min="0" step="0.01">
+              </mat-form-field>
+              <span class="currency">BDT</span>
+            </span>
+          </div>
+          
+          <div class="pricing-row">
+            <span class="label">Discount:</span>
+            <span class="value">
+              <mat-form-field appearance="outline" class="currency-field">
+                <input matInput type="number" formControlName="discount" min="0" step="0.01">
+              </mat-form-field>
+              <span class="currency">BDT</span>
+            </span>
+          </div>
+          
+          <div class="pricing-row total">
+            <span class="label">Total Fare:</span>
+            <span class="value">
+              {{ bookingForm.get('totalFare').value | number:'1.2-2' }} BDT
+            </span>
+          </div>
+          
+          <mat-divider class="divider"></mat-divider>
+          
+          <div class="pricing-row">
+            <span class="label">Customer Pay:</span>
+            <span class="value">
+              <mat-form-field appearance="outline" class="currency-field">
+                <input matInput type="number" formControlName="customerPay" min="0" step="0.01">
+              </mat-form-field>
+              <span class="currency">BDT</span>
+            </span>
+          </div>
+          
+          <div class="pricing-row">
+            <span class="label">Agency Pay:</span>
+            <span class="value">
+              <mat-form-field appearance="outline" class="currency-field">
+                <input matInput type="number" formControlName="agencyPay" min="0" step="0.01">
+              </mat-form-field>
+              <span class="currency">BDT</span>
+            </span>
+          </div>
+          
+          <div class="pricing-row">
+            <span class="label">Expense:</span>
+            <span class="value">
+              <mat-form-field appearance="outline" class="currency-field">
+                <input matInput type="number" formControlName="expense" min="0" step="0.01">
+              </mat-form-field>
+              <span class="currency">BDT</span>
+            </span>
+          </div>
+          
+          <div class="pricing-row">
+            <span class="label">Profit:</span>
+            <span class="value">
+              <mat-form-field appearance="outline" class="currency-field">
+                <input matInput type="number" formControlName="profit" min="0" step="0.01">
+              </mat-form-field>
+              <span class="currency">BDT</span>
+            </span>
+          </div>
+        </div>
+        
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Reference</mat-label>
+          <input matInput formControlName="reference" placeholder="Any reference or notes">
+        </mat-form-field>
+      </div>
+    </mat-tab>
+  </mat-tab-group>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-button (click)="onCancel()">Cancel</button>
+  <button mat-raised-button color="primary" (click)="onSubmit()" [disabled]="!bookingForm.valid || loading">
+    <span *ngIf="loading" class="spinner-container">
+      <mat-spinner diameter="20"></mat-spinner>
+    </span>
+    {{ isEdit ? 'Update' : 'Create' }} Booking
+  </button>
+</mat-dialog-actions>
